@@ -137,13 +137,27 @@ static SV *create_tree_object(myhtml_tree_t *tree, SV *parent, html5_dom_parser_
 	return sv;
 }
 
+static inline const char *get_node_class(myhtml_tag_id_t tag_id) {
+	if (tag_id != MyHTML_TAG__UNDEF) {
+		if (tag_id == MyHTML_TAG__TEXT) {
+			return "HTML5::DOM::Text";
+		} else if (tag_id == MyHTML_TAG__COMMENT) {
+			return "HTML5::DOM::Comment";
+		} else if (tag_id == MyHTML_TAG__DOCTYPE) {
+			return "HTML5::DOM::DocType";
+		}
+		return "HTML5::DOM::Element";
+	}
+	return "HTML5::DOM::Node";
+}
+
 static SV *node_to_sv(myhtml_tree_node_t *node) {
 	if (!node)
 		return &PL_sv_undef;
 	
 	SV *sv = (SV *) myhtml_node_get_data(node);
 	if (!sv) {
-		SV *sv_ref = pack_pointer("HTML5::DOM::Node", (void *) node);
+		SV *sv_ref = pack_pointer(get_node_class(node->tag_id), (void *) node);
 		sv = SvRV(sv_ref);
 		myhtml_node_set_data(node, (void *) sv);
 		
@@ -497,17 +511,66 @@ CODE:
 #################################################################
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Tree
 
-HTML5::DOM::Tree
-new(...)
-CODE:
-	sub_croak(cv, "no direct call, use parse methods");
-OUTPUT:
-	RETVAL
-
 SV *
 body(HTML5::DOM::Tree self)
 CODE:
 	RETVAL = node_to_sv(myhtml_tree_get_node_body(self->tree));
+OUTPUT:
+	RETVAL
+
+SV *
+createElement(HTML5::DOM::Tree self, SV *tag, SV *ns_name = NULL)
+CODE:
+	// Get namespace id by name
+	myhtml_namespace_t ns = MyHTML_NAMESPACE_HTML;
+	if (ns_name) {
+		ns_name = sv_stringify(ns_name);
+		STRLEN ns_name_len;
+		const char *ns_name_str = SvPV_const(ns_name, ns_name_len);
+		if (!myhtml_namespace_id_by_name(ns_name_str, ns_name_len, &ns))
+			sub_croak(cv, "unknown namespace: %s", ns_name_str);
+	}
+	
+	// Get tag id by name
+	tag = sv_stringify(tag);
+	STRLEN tag_len;
+	const char *tag_str = SvPV_const(tag, tag_len);
+	
+	myhtml_tag_id_t tag_id;
+	const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_name(self->tree->tags, tag_str, tag_len);
+	if (tag_ctx) {
+		tag_id = tag_ctx->id;
+	} else {
+		// add custom tag
+		tag_id = myhtml_tag_add(self->tree->tags, tag_str, tag_len, MyHTML_TOKENIZER_STATE_DATA, true);
+	}
+	
+	// create new tag
+	RETVAL = node_to_sv(myhtml_node_create(self->tree, tag_id, ns));
+OUTPUT:
+	RETVAL
+
+SV *
+createComment(HTML5::DOM::Tree self, SV *text)
+CODE:
+	text = sv_stringify(text);
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	myhtml_tree_node_t *node = myhtml_node_create(self->tree, MyHTML_TAG__COMMENT, MyHTML_NAMESPACE_HTML);
+	myhtml_node_text_set(node, text_str, text_len, self->tree->encoding);
+	RETVAL = node_to_sv(node);
+OUTPUT:
+	RETVAL
+
+SV *
+createTextNode(HTML5::DOM::Tree self, SV *text)
+CODE:
+	text = sv_stringify(text);
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	myhtml_tree_node_t *node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, MyHTML_NAMESPACE_HTML);
+	myhtml_node_text_set(node, text_str, text_len, self->tree->encoding);
+	RETVAL = node_to_sv(node);
 OUTPUT:
 	RETVAL
 
@@ -519,7 +582,7 @@ OUTPUT:
 	RETVAL
 
 SV *
-html(HTML5::DOM::Tree self)
+root(HTML5::DOM::Tree self)
 CODE:
 	RETVAL = node_to_sv(myhtml_tree_get_node_html(self->tree));
 OUTPUT:
@@ -527,8 +590,6 @@ OUTPUT:
 
 SV *
 document(HTML5::DOM::Tree self)
-ALIAS:
-	root = 1
 CODE:
 	RETVAL = node_to_sv(myhtml_tree_get_document(self->tree));
 OUTPUT:
@@ -609,43 +670,21 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Find by css query
-SV *
-find(HTML5::DOM::Node self, SV *query, SV *combinator = NULL)
-ALIAS:
-	at = 1
-CODE:
-	html5_dom_tree_t *tree_context = (html5_dom_tree_t *) self->tree->context;
-	RETVAL = html5_node_find(cv, tree_context->parser, self, query, combinator, ix == 1);
-OUTPUT:
-	RETVAL
-
-# Find by tag name
-SV *
-findTag(HTML5::DOM::Node self, SV *tag)
-CODE:
-	tag = sv_stringify(tag);
-	
-	STRLEN tag_len;
-	const char *tag_str = SvPV_const(tag, tag_len);
-	
-	myhtml_collection_t *collection = myhtml_get_nodes_by_name_in_scope(self->tree, NULL, self, tag_str, tag_len, NULL);
-	RETVAL = collection_to_blessed_array(collection);
-	
-	if (collection)
-		myhtml_collection_destroy(collection);
-OUTPUT:
-	RETVAL
-
 # Serialize tree to html
 SV *
 html(HTML5::DOM::Node self, bool recursive = 1)
 CODE:
-	myhtml_tree_t *tree = self->tree;
-	
 	RETVAL = newSVpv("", 0);
 	if (recursive) {
-		myhtml_serialization_tree_callback(self, sv_serialization_callback, RETVAL);
+		if (self->tag_id == MyHTML_TAG__UNDEF) { // hack for document node :(
+			myhtml_tree_node_t *node = myhtml_node_child(self);
+			while (node) {
+				myhtml_serialization_tree_callback(node, sv_serialization_callback, RETVAL);
+				node = myhtml_node_next(node);
+			}
+		} else {
+			myhtml_serialization_tree_callback(self, sv_serialization_callback, RETVAL);
+		}
 	} else {
 		myhtml_serialization_node_callback(self, sv_serialization_callback, RETVAL);
 	}
@@ -657,20 +696,25 @@ SV *
 text(HTML5::DOM::Node self, bool recursive = 1)
 CODE:
 	myhtml_tree_t *tree = self->tree;
-	
-	RETVAL = newSVpv("", 0);
-	if (recursive) {
-		html5_dom_recursive_node_text(self, RETVAL);
+	if (!node_is_element(self)) {
+		size_t text_len = 0;
+		const char *text = myhtml_node_text(self, &text_len);
+		RETVAL = newSVpv(text ? text : "", text_len);
 	} else {
-		myhtml_tree_node_t *node = myhtml_node_child(self);
-		while (node) {
-			if (node->tag_id == MyHTML_TAG__TEXT) {
-				size_t text_len = 0;
-				const char *text = myhtml_node_text(node, &text_len);
-				if (text_len)
-					sv_catpvn(RETVAL, text, text_len);
+		RETVAL = newSVpv("", 0);
+		if (recursive) {
+			html5_dom_recursive_node_text(self, RETVAL);
+		} else {
+			myhtml_tree_node_t *node = myhtml_node_child(self);
+			while (node) {
+				if (node->tag_id == MyHTML_TAG__TEXT) {
+					size_t text_len = 0;
+					const char *text = myhtml_node_text(node, &text_len);
+					if (text_len)
+						sv_catpvn(RETVAL, text, text_len);
+				}
+				node = myhtml_node_next(node);
 			}
-			node = myhtml_node_next(node);
 		}
 	}
 OUTPUT:
@@ -719,6 +763,109 @@ SV *
 parent(HTML5::DOM::Node self)
 CODE:
 	RETVAL = node_to_sv(myhtml_node_parent(self));
+OUTPUT:
+	RETVAL
+
+# Remove node from tree
+SV *
+remove(HTML5::DOM::Node self)
+CODE:
+	RETVAL = node_to_sv(myhtml_tree_node_remove(self));
+OUTPUT:
+	RETVAL
+
+# Append child to parent before current node
+SV *
+before(HTML5::DOM::Node self, HTML5::DOM::Node child)
+CODE:
+	if (!myhtml_node_parent(self))
+		sub_croak(cv, "can't insert after detached node");
+	myhtml_tree_node_insert_before(self, child);
+	RETVAL = SvREFCNT_inc(ST(0));
+OUTPUT:
+	RETVAL
+
+# Append child to parent after current node
+SV *
+after(HTML5::DOM::Node self, HTML5::DOM::Node child)
+CODE:
+	if (!myhtml_node_parent(self))
+		sub_croak(cv, "can't insert before detached node");
+	myhtml_tree_node_insert_after(self, child);
+	RETVAL = SvREFCNT_inc(ST(0));
+OUTPUT:
+	RETVAL
+
+# Clone node
+SV *
+append(HTML5::DOM::Node self, HTML5::DOM::Node child)
+CODE:
+	if (!node_is_element(self))
+		sub_croak(cv, "can't append children to non-element node");
+	myhtml_tree_node_add_child(self, child);
+	RETVAL = SvREFCNT_inc(ST(0));
+OUTPUT:
+	RETVAL
+
+# Clone node
+SV *
+clone(HTML5::DOM::Node self)
+CODE:
+	RETVAL = node_to_sv(myhtml_tree_node_clone(self));
+OUTPUT:
+	RETVAL
+
+bool
+selfClosed(HTML5::DOM::Node self)
+CODE:
+	RETVAL = myhtml_node_is_close_self(self);
+OUTPUT:
+	RETVAL
+
+void
+DESTROY(HTML5::DOM::Node self)
+CODE:
+	SV *sv = (SV *) myhtml_node_get_data(self);
+	
+	DOM_GC_TRACE("DOM::Node::DESTROY (refcnt=%d)", sv ? SvREFCNT(sv) : -666);
+	
+	if (sv) {
+		html5_dom_tree_t *tree = (html5_dom_tree_t *) self->tree->context;
+		myhtml_node_set_data(self, NULL);
+		// detached node, can be deleted
+		if (!myhtml_node_parent(self) && self != myhtml_tree_get_document(self->tree))
+			myhtml_tree_node_delete_recursive(self);
+		SvREFCNT_dec(tree->sv);
+	}
+
+#################################################################
+# HTML5::DOM::Element (extends Node)
+#################################################################
+# Find by css query
+SV *
+find(HTML5::DOM::Node self, SV *query, SV *combinator = NULL)
+ALIAS:
+	at = 1
+CODE:
+	html5_dom_tree_t *tree_context = (html5_dom_tree_t *) self->tree->context;
+	RETVAL = html5_node_find(cv, tree_context->parser, self, query, combinator, ix == 1);
+OUTPUT:
+	RETVAL
+
+# Find by tag name
+SV *
+findTag(HTML5::DOM::Node self, SV *tag)
+CODE:
+	tag = sv_stringify(tag);
+	
+	STRLEN tag_len;
+	const char *tag_str = SvPV_const(tag, tag_len);
+	
+	myhtml_collection_t *collection = myhtml_get_nodes_by_name_in_scope(self->tree, NULL, self, tag_str, tag_len, NULL);
+	RETVAL = collection_to_blessed_array(collection);
+	
+	if (collection)
+		myhtml_collection_destroy(collection);
 OUTPUT:
 	RETVAL
 
@@ -866,14 +1013,6 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Flag if node is element
-bool
-isElement(HTML5::DOM::Node self)
-CODE:
-	RETVAL = node_is_element(self);
-OUTPUT:
-	RETVAL
-
 # Return collection with children elements
 SV *
 children(HTML5::DOM::Node self)
@@ -906,20 +1045,6 @@ CODE:
 	RETVAL = sv_bless(newRV_noinc((SV *) arr), gv_stashpv("HTML5::DOM::Collection", 0));
 OUTPUT:
 	RETVAL
-
-void
-DESTROY(HTML5::DOM::Node self)
-CODE:
-	SV *sv = (SV *) myhtml_node_get_data(self);
-	
-	DOM_GC_TRACE("DOM::Node::DESTROY (refcnt=%d)", sv ? SvREFCNT(sv) : -666);
-	
-	if (sv) {
-		html5_dom_tree_t *tree = (html5_dom_tree_t *) self->tree->context;
-		myhtml_node_set_data(self, NULL);
-		SvREFCNT_dec(tree->sv);
-	}
-
 
 #################################################################
 # HTML5::DOM::CSS (Parser)
