@@ -1,2 +1,2 @@
 # perl-html5-dom
-Super fast html5 DOM library with css selectors (based on Modest/MyHTML)
+In active state of dev! Not yet ready for release!
