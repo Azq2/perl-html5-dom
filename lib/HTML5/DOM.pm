@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use HTML5::DOM::Node;
+use HTML5::DOM::Tree;
 use HTML5::DOM::Collection;
 use HTML5::DOM::CSS;
 

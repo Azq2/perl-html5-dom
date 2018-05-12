@@ -10,6 +10,11 @@ use overload
 	'bool'		=> sub { 1 }, 
 	fallback	=> 1;
 
+sub new {
+	my ($class, $text) = shift;
+	return HTML5::DOM::CSS->new->parseSelector($text);
+}
+
 # TODO: implement in XS?
 sub array {
 	my $self = shift;

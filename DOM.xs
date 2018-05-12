@@ -14,15 +14,29 @@
 // #define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
 #define DOM_GC_TRACE(...)
 
+#define sub_croak(cv, msg, ...) do { \
+	const GV *const __gv = CvGV(cv); \
+	if (__gv) { \
+		const char *__gvname = GvNAME(__gv); \
+		const HV *__stash = GvSTASH(__gv); \
+		const char *__hvname = __stash ? HvNAME(__stash) : NULL; \
+		Perl_croak_nocontext("%s%s%s(): " msg, __hvname ? __hvname : __gvname, __hvname ? "::" : "", __hvname ? __gvname : "", ##__VA_ARGS__); \
+	} \
+} while (0);
+
 typedef struct {
 	myhtml_t *myhtml;
 	myhtml_tree_t *tree;
+	mycss_t *mycss;
+	mycss_entry_t *mycss_entry;
+	modest_finder_t *finder;
 } html5_dom_parser_t;
 
 typedef struct {
-	SV *parser;
+	SV *parent;
 	SV *sv;
 	myhtml_tree_t *tree;
+	html5_dom_parser_t *parser;
 } html5_dom_tree_t;
 
 typedef struct {
@@ -51,10 +65,32 @@ typedef html5_css_parser_t *			HTML5__DOM__CSS;
 typedef html5_css_selector_t *			HTML5__DOM__CSS__Selector;
 typedef html5_css_selector_entry_t *	HTML5__DOM__CSS__Selector__Entry;
 
+static const char *modest_strerror(mystatus_t status) {
+	switch (status) {
+		#include "modest_errors.c"	
+	}
+	return status ? "UNKNOWN" : "";
+}
+
 static void html5_dom_parser_free(html5_dom_parser_t *self) {
 	if (self->myhtml) {
 		myhtml_destroy(self->myhtml);
 		self->myhtml = NULL;
+	}
+	
+	if (self->mycss_entry) {
+		mycss_entry_destroy(self->mycss_entry, 1);
+		self->mycss_entry = NULL;
+	}
+	
+	if (self->mycss) {
+		mycss_destroy(self->mycss, 1);
+		self->mycss = NULL;
+	}
+	
+	if (self->finder) {
+		modest_finder_destroy(self->finder, 1);
+		self->finder = NULL;
 	}
 }
 
@@ -83,14 +119,15 @@ static void html5_dom_recursive_node_text(myhtml_tree_node_t *node, SV *sv) {
 	}
 }
 
-static SV *create_tree_object(myhtml_tree_t *tree, SV *parser) {
+static SV *create_tree_object(myhtml_tree_t *tree, SV *parent, html5_dom_parser_t *parser) {
 	tree->context = safemalloc(sizeof(html5_dom_tree_t));
 	
 	html5_dom_tree_t *tree_obj = (html5_dom_tree_t *) tree->context;
 	tree_obj->tree = tree;
+	tree_obj->parent = parent;
 	tree_obj->parser = parser;
 	
-	SvREFCNT_inc(parser);
+	SvREFCNT_inc(parent);
 	
 	SV *sv = pack_pointer("HTML5::DOM::Tree", tree_obj);
 	tree_obj->sv = SvRV(sv);
@@ -159,6 +196,192 @@ static SV *sv_stringify(SV *sv) {
 	return sv;
 }
 
+static mystatus_t html5_dom_init_css(html5_dom_parser_t *parser) {
+	mystatus_t status = MyCSS_STATUS_OK;
+	
+	if (!parser->mycss) {
+		parser->mycss = mycss_create();
+		status = mycss_init(parser->mycss);
+		if (status) {
+			mycss_destroy(parser->mycss, 1);
+			parser->mycss = NULL;
+			return status;
+		}
+	}
+	
+	if (!parser->mycss_entry) {
+		parser->mycss_entry = mycss_entry_create();
+		status = mycss_entry_init(parser->mycss, parser->mycss_entry);
+		if (status) {
+			mycss_entry_destroy(parser->mycss_entry, 1);
+			mycss_destroy(parser->mycss, 1);
+			parser->mycss = NULL;
+			parser->mycss_entry = NULL;
+			return status;
+		}
+	}
+	
+	return status;
+}
+
+static mycss_selectors_list_t *html5_parse_selector(mycss_entry_t *entry, const char *query, size_t query_len, mystatus_t *status_out) {
+	mystatus_t status;
+	
+	*status_out = MyCSS_STATUS_OK;
+	
+    mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(entry), MyENCODING_UTF_8, query, query_len, &status);
+    if (status || list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
+		if (list)
+			mycss_selectors_list_destroy(mycss_entry_selectors(entry), list, true);
+		*status_out = status;
+		return NULL;
+	}
+	
+	return list;
+}
+
+static void _modest_finder_callback_found_width_one_node(modest_finder_t *finder, myhtml_tree_node_t *node, 
+	mycss_selectors_list_t *selector_list, mycss_selectors_entry_t *selector, mycss_selectors_specificity_t *spec, void *ctx)
+{
+	myhtml_tree_node_t **result_node = (myhtml_tree_node_t **) ctx;
+	if (!*result_node)
+		*result_node = node;
+}
+
+static void *html5_node_finder(html5_dom_parser_t *parser, modest_finder_selector_combinator_f func, 
+		myhtml_tree_node_t *scope, mycss_selectors_entries_list_t *list, size_t list_size, mystatus_t *status_out, bool one)
+{
+	*status_out = MODEST_STATUS_OK;
+	
+	if (!scope)
+		return NULL;
+	
+	// Init finder
+	mystatus_t status;
+	if (parser->finder) {
+		parser->finder = modest_finder_create();
+		status = modest_finder_init(parser->finder);
+		if (status) {
+			*status_out = status;
+			modest_finder_destroy(parser->finder, 1);
+			return NULL;
+		}
+	}
+	
+	if (one) {
+		// Process selector entries
+		myhtml_tree_node_t *node = NULL;
+		for (size_t i = 0; i < list_size; ++i) {
+			func(parser->finder, scope, NULL, list[i].entry, &list[i].specificity, 
+				_modest_finder_callback_found_width_one_node, &node);
+			
+			if (node)
+				break;
+		}
+		
+		return (void *) node;
+	} else {
+		// Init collection for results
+		myhtml_collection_t *collection = myhtml_collection_create(4096, &status);
+		if (status) {
+			*status_out = MODEST_STATUS_ERROR_MEMORY_ALLOCATION;
+			return NULL;
+		}
+		
+		// Process selector entries
+		for (size_t i = 0; i < list_size; ++i) {
+			func(parser->finder, scope, NULL, list[i].entry, &list[i].specificity, 
+				modest_finder_callback_found_with_collection, collection);
+		}
+		
+		return (void *) collection;
+	}
+}
+
+static modest_finder_selector_combinator_f html5_find_selector_func(const char *c, int combo_len) {
+	if (combo_len == 2) {
+		if (c[0] == '|' && c[1] == '|')
+			return modest_finder_node_combinator_column;
+		if ((c[0] == '>' && c[1] == '>'))
+			return modest_finder_node_combinator_descendant;
+	} else if (combo_len == 1) {
+		if (c[0] == '>')
+			return modest_finder_node_combinator_child;
+		if (c[0] == '+')
+			return modest_finder_node_combinator_next_sibling;
+		if (c[0] == '~')
+			return modest_finder_node_combinator_following_sibling;
+	}
+	return modest_finder_node_combinator_begin;
+}
+
+static SV *html5_node_find(CV *cv, html5_dom_parser_t *parser, myhtml_tree_node_t *scope, SV *query, SV *combinator, bool one) {
+	mystatus_t status;
+	mycss_selectors_entries_list_t *list = NULL;
+	size_t list_size = 0;
+	mycss_selectors_list_t *selector = NULL;
+	modest_finder_selector_combinator_f selector_func = modest_finder_node_combinator_begin;
+	SV *result = &PL_sv_undef;
+	
+	// Custom combinator as args
+	if (combinator) {
+		query = sv_stringify(query);
+		
+		STRLEN combo_len;
+		const char *combo = SvPV_const(combinator, combo_len);
+		
+		if (combo_len > 0)
+			selector_func = html5_find_selector_func(combo, combo_len);
+	}
+	
+	if (SvROK(query)) {
+		if (sv_derived_from(query, "HTML5::DOM::CSS::Selector")) { // Precompiler selectors
+			html5_css_selector_t *selector = INT2PTR(html5_css_selector_t *, SvIV((SV*)SvRV(query)));
+			list = selector->list->entries_list;
+			list_size = selector->list->entries_list_length;
+		} else if (sv_derived_from(query, "HTML5::DOM::CSS::Selector::Entry")) { // One precompiled selector
+			html5_css_selector_entry_t *selector = INT2PTR(html5_css_selector_entry_t *, SvIV((SV*)SvRV(query)));
+			list = selector->list;
+			list_size = 1;
+		} else {
+			sub_croak(cv, "%s: %s is not of type %s or %s", "HTML5::DOM::Tree::find", "query", "HTML5::DOM::CSS::Selector", "HTML5::DOM::CSS::Selector::Entry");
+		}
+	} else {
+		// String selector, compile it
+		query = sv_stringify(query);
+		
+		STRLEN query_len;
+		const char *query_str = SvPV_const(query, query_len);
+		
+		status = html5_dom_init_css(parser);
+		if (status)
+			sub_croak(cv, "mycss_init failed: %d (%s)", status, modest_strerror(status));
+		
+		selector = html5_parse_selector(parser->mycss_entry, query_str, query_len, &status);
+		
+		if (!selector)
+			sub_croak(cv, "bad selector: %s", query_str);
+		
+		list = selector->entries_list;
+		list_size = selector->entries_list_length;
+	}
+	
+	if (one) { // search one element
+		myhtml_tree_node_t *node = (myhtml_tree_node_t *) html5_node_finder(parser, selector_func, scope, list, list_size, &status, 1);
+		result = node_to_sv(node);
+	} else { // search multiple elements
+		myhtml_collection_t *collection = (myhtml_collection_t *) html5_node_finder(parser, selector_func, scope, list, list_size, &status, 0);
+		result = collection_to_blessed_array(collection);
+		if (collection)
+			myhtml_collection_destroy(collection);
+	}
+	
+	// destroy parsed selector
+	if (selector)
+		mycss_selectors_list_destroy(mycss_entry_selectors(parser->mycss_entry), selector, true);
+	
+	return result;
+}
 
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
 
@@ -168,7 +391,7 @@ MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
 HTML5::DOM
 new(...)
 CODE:
-	DOM_GC_TRACE("DOM::new\n");
+	DOM_GC_TRACE("DOM::new");
 	
 	mystatus_t status;
 	
@@ -179,7 +402,7 @@ CODE:
 	status = myhtml_init(self->myhtml, MyHTML_OPTIONS_DEFAULT, 1, 0);
 	if (status) {
 		html5_dom_parser_free(self);
-		croak("myhtml_init failed: %d", status);
+		sub_croak(cv, "myhtml_init failed: %d (%s)", status, modest_strerror(status));
 	}
 	
 	RETVAL = self;
@@ -197,7 +420,7 @@ CODE:
 		status = myhtml_tree_init(self->tree, self->myhtml);
 		if (status) {
 			myhtml_tree_destroy(self->tree);
-			croak("myhtml_tree_init failed: %d", status);
+			sub_croak(cv, "myhtml_tree_init failed: %d (%s)", status, modest_strerror(status));
 		}
 		myhtml_encoding_set(self->tree, MyENCODING_UTF_8);
 	}
@@ -208,7 +431,7 @@ CODE:
 	status = myhtml_parse_chunk(self->tree, html_str, html_length);
 	if (status) {
 		myhtml_tree_destroy(self->tree);
-		croak("myhtml_parse_chunk failed: %d", status);
+		sub_croak(cv, "myhtml_parse_chunk failed: %d (%s)", status, modest_strerror(status));
 	}
 	
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -222,15 +445,15 @@ CODE:
 	mystatus_t status;
 	
 	if (!self->tree)
-		croak("call parseChunk first");
+		sub_croak(cv, "call parseChunk first");
 	
 	status = myhtml_parse_chunk_end(self->tree);
 	if (status) {
 		myhtml_tree_destroy(self->tree);
-		croak("myhtml_parse_chunk failed: %d", status);
+		sub_croak(cv, "myhtml_parse_chunk failed:%d (%s)", status, modest_strerror(status));
 	}
 	
-	RETVAL = create_tree_object(self->tree, SvRV(ST(0)));
+	RETVAL = create_tree_object(self->tree, SvRV(ST(0)), self);
 	self->tree = NULL;
 OUTPUT:
 	RETVAL
@@ -245,7 +468,7 @@ CODE:
 	status = myhtml_tree_init(tree, self->myhtml);
 	if (status) {
 		myhtml_tree_destroy(tree);
-		croak("myhtml_tree_init failed: %d", status);
+		sub_croak(cv, "myhtml_tree_init failed: %d (%s)", status, modest_strerror(status));
 	}
 	
 	STRLEN html_length;
@@ -254,17 +477,17 @@ CODE:
 	status = myhtml_parse(tree, MyENCODING_UTF_8, html_str, html_length);
 	if (status) {
 		myhtml_tree_destroy(tree);
-		croak("myhtml_parse failed: %d", status);
+		sub_croak(cv, "myhtml_parse failed: %d (%s)", status, modest_strerror(status));
 	}
 	
-	RETVAL = create_tree_object(tree, SvRV(ST(0)));
+	RETVAL = create_tree_object(tree, SvRV(ST(0)), self);
 OUTPUT:
 	RETVAL
 
 void
 DESTROY(HTML5::DOM self)
 CODE:
-	DOM_GC_TRACE("DOM::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	DOM_GC_TRACE("DOM::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	html5_dom_parser_free(self);
 
 
@@ -277,11 +500,9 @@ MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Tree
 HTML5::DOM::Tree
 new(...)
 CODE:
-	croak("no direct call, use parse methods");
+	sub_croak(cv, "no direct call, use parse methods");
 OUTPUT:
 	RETVAL
-
-
 
 SV *
 body(HTML5::DOM::Tree self)
@@ -309,7 +530,19 @@ document(HTML5::DOM::Tree self)
 ALIAS:
 	root = 1
 CODE:
-	RETVAL = node_to_sv(myhtml_tree_get_node_html(self->tree));
+	RETVAL = node_to_sv(myhtml_tree_get_document(self->tree));
+OUTPUT:
+	RETVAL
+
+SV *
+find(HTML5::DOM::Tree self, SV *query, SV *combinator = NULL)
+ALIAS:
+	at = 1
+CODE:
+	myhtml_tree_node_t *scope = myhtml_tree_get_document(self->tree);
+	if (!scope)
+		scope = myhtml_tree_get_node_html(self->tree);
+	RETVAL = html5_node_find(cv, self->parser, scope, query, combinator, ix == 1);
 OUTPUT:
 	RETVAL
 
@@ -332,10 +565,10 @@ OUTPUT:
 void
 DESTROY(HTML5::DOM::Tree self)
 CODE:
-	DOM_GC_TRACE("DOM::Tree::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	DOM_GC_TRACE("DOM::Tree::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	void *context = self->tree->context;
 	myhtml_tree_destroy(self->tree);
-	SvREFCNT_dec(self->parser);
+	SvREFCNT_dec(self->parent);
 	safefree(context);
 
 
@@ -347,7 +580,7 @@ MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Node
 HTML5::DOM::Node
 new(...)
 CODE:
-	croak("Can't manualy create node");
+	sub_croak(cv, "Can't manualy create node");
 	RETVAL = NULL;
 OUTPUT:
 	RETVAL
@@ -373,6 +606,34 @@ CODE:
 		if (tag_ctx)
 			RETVAL = newSVpv(tag_ctx->name, tag_ctx->name_length);
 	}
+OUTPUT:
+	RETVAL
+
+# Find by css query
+SV *
+find(HTML5::DOM::Node self, SV *query, SV *combinator = NULL)
+ALIAS:
+	at = 1
+CODE:
+	html5_dom_tree_t *tree_context = (html5_dom_tree_t *) self->tree->context;
+	RETVAL = html5_node_find(cv, tree_context->parser, self, query, combinator, ix == 1);
+OUTPUT:
+	RETVAL
+
+# Find by tag name
+SV *
+findTag(HTML5::DOM::Node self, SV *tag)
+CODE:
+	tag = sv_stringify(tag);
+	
+	STRLEN tag_len;
+	const char *tag_str = SvPV_const(tag, tag_len);
+	
+	myhtml_collection_t *collection = myhtml_get_nodes_by_name_in_scope(self->tree, NULL, self, tag_str, tag_len, NULL);
+	RETVAL = collection_to_blessed_array(collection);
+	
+	if (collection)
+		myhtml_collection_destroy(collection);
 OUTPUT:
 	RETVAL
 
@@ -651,7 +912,7 @@ DESTROY(HTML5::DOM::Node self)
 CODE:
 	SV *sv = (SV *) myhtml_node_get_data(self);
 	
-	DOM_GC_TRACE("DOM::Node::DESTROY (refcnt=%d)\n", sv ? SvREFCNT(sv) : -666);
+	DOM_GC_TRACE("DOM::Node::DESTROY (refcnt=%d)", sv ? SvREFCNT(sv) : -666);
 	
 	if (sv) {
 		html5_dom_tree_t *tree = (html5_dom_tree_t *) self->tree->context;
@@ -667,14 +928,14 @@ MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::CSS
 HTML5::DOM::CSS
 new(...)
 CODE:
-	DOM_GC_TRACE("DOM::CSS::new\n");
+	DOM_GC_TRACE("DOM::CSS::new");
 	mystatus_t status;
 	
 	mycss_t *mycss = mycss_create();
 	status = mycss_init(mycss);
 	if (status) {
 		mycss_destroy(mycss, 1);
-		croak("mycss_init failed: %d", status);
+		sub_croak(cv, "mycss_init failed: %d (%s)", status, modest_strerror(status));
 	}
 	
 	mycss_entry_t *entry = mycss_entry_create();
@@ -682,7 +943,7 @@ CODE:
 	if (status) {
 		mycss_destroy(mycss, 1);
 		mycss_entry_destroy(entry, 1);
-		croak("mycss_entry_init failed: %d", status);
+		sub_croak(cv, "mycss_entry_init failed: %d (%s)", status, modest_strerror(status));
 	}
     
 	html5_css_parser_t *self = (html5_css_parser_t *) safemalloc(sizeof(html5_css_parser_t));
@@ -708,10 +969,10 @@ CODE:
     if (list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
 		if (list)
 			mycss_selectors_list_destroy(mycss_entry_selectors(self->entry), list, true);
-		croak("bad selectors");
+		sub_croak(cv, "bad selector: %s", query_str);
 	}
 	
-	DOM_GC_TRACE("DOM::CSS::Selector::NEW\n");
+	DOM_GC_TRACE("DOM::CSS::Selector::NEW");
 	html5_css_selector_t *selector = (html5_css_selector_t *) safemalloc(sizeof(html5_css_selector_t));
 	selector->parent = SvRV(ST(0));
 	selector->list = list;
@@ -724,7 +985,7 @@ OUTPUT:
 void
 DESTROY(HTML5::DOM::CSS self)
 CODE:
-	DOM_GC_TRACE("DOM::CSS::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	DOM_GC_TRACE("DOM::CSS::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	mycss_entry_destroy(self->entry, 1);
 	mycss_destroy(self->mycss, 1);
 	safefree(self);
@@ -759,7 +1020,7 @@ CODE:
 	if (index < 0 || index >= self->list->entries_list_length) {
 		RETVAL = &PL_sv_undef;
 	} else {
-		DOM_GC_TRACE("DOM::CSS::Selector::Entry::NEW\n");
+		DOM_GC_TRACE("DOM::CSS::Selector::Entry::NEW");
 		html5_css_selector_entry_t *entry = (html5_css_selector_entry_t *) safemalloc(sizeof(html5_css_selector_entry_t));
 		entry->parent = SvRV(ST(0));
 		entry->list = &self->list->entries_list[index];
@@ -773,7 +1034,7 @@ OUTPUT:
 void
 DESTROY(HTML5::DOM::CSS::Selector self)
 CODE:
-	DOM_GC_TRACE("DOM::CSS::Selector::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	DOM_GC_TRACE("DOM::CSS::Selector::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	mycss_selectors_list_destroy(mycss_entry_selectors(self->parser->entry), self->list, true);
 	SvREFCNT_dec(self->parent);
 	safefree(self);
@@ -793,6 +1054,7 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Return selector specificity in hash {a, b, c}
 SV *
 specificity(HTML5::DOM::CSS::Selector::Entry self)
 CODE:
@@ -804,6 +1066,7 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Return selector specificity in array [b, a, c]
 SV *
 specificityArray(HTML5::DOM::CSS::Selector::Entry self)
 CODE:
@@ -818,6 +1081,6 @@ OUTPUT:
 void
 DESTROY(HTML5::DOM::CSS::Selector::Entry self)
 CODE:
-	DOM_GC_TRACE("DOM::CSS::Selector::Entry::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	DOM_GC_TRACE("DOM::CSS::Selector::Entry::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	SvREFCNT_dec(self->parent);
 	safefree(self);
