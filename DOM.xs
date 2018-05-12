@@ -25,10 +25,31 @@ typedef struct {
 	myhtml_tree_t *tree;
 } html5_dom_tree_t;
 
+typedef struct {
+	mycss_t *mycss;
+	mycss_entry_t *entry;
+	myencoding_t encoding;
+} html5_css_parser_t;
+
+typedef struct {
+	html5_css_parser_t *parser;
+	mycss_selectors_list_t *list;
+	SV *parent;
+} html5_css_selector_t;
+
+typedef struct {
+	html5_css_parser_t *parser;
+	mycss_selectors_entries_list_t *list;
+	SV *parent;
+} html5_css_selector_entry_t;
+
 typedef html5_dom_parser_t *			HTML5__DOM;
 typedef myhtml_collection_t *			HTML5__DOM__Collection;
 typedef myhtml_tree_node_t *			HTML5__DOM__Node;
 typedef html5_dom_tree_t *				HTML5__DOM__Tree;
+typedef html5_css_parser_t *			HTML5__DOM__CSS;
+typedef html5_css_selector_t *			HTML5__DOM__CSS__Selector;
+typedef html5_css_selector_entry_t *	HTML5__DOM__CSS__Selector__Entry;
 
 static void html5_dom_parser_free(html5_dom_parser_t *self) {
 	if (self->myhtml) {
@@ -63,7 +84,7 @@ static void html5_dom_recursive_node_text(myhtml_tree_node_t *node, SV *sv) {
 }
 
 static SV *create_tree_object(myhtml_tree_t *tree, SV *parser) {
-	tree->context = malloc(sizeof(html5_dom_tree_t));
+	tree->context = safemalloc(sizeof(html5_dom_tree_t));
 	
 	html5_dom_tree_t *tree_obj = (html5_dom_tree_t *) tree->context;
 	tree_obj->tree = tree;
@@ -138,8 +159,12 @@ static SV *sv_stringify(SV *sv) {
 	return sv;
 }
 
+
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
 
+#################################################################
+# HTML5::DOM (Parser)
+#################################################################
 HTML5::DOM
 new(...)
 CODE:
@@ -147,7 +172,7 @@ CODE:
 	
 	mystatus_t status;
 	
-	html5_dom_parser_t *self = (html5_dom_parser_t *) malloc(sizeof(html5_dom_parser_t));
+	html5_dom_parser_t *self = (html5_dom_parser_t *) safemalloc(sizeof(html5_dom_parser_t));
 	memset(self, 0, sizeof(html5_dom_parser_t));
 	
 	self->myhtml = myhtml_create();
@@ -244,7 +269,9 @@ CODE:
 
 
 
-
+#################################################################
+# HTML5::DOM::Tree
+#################################################################
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Tree
 
 HTML5::DOM::Tree
@@ -307,12 +334,15 @@ DESTROY(HTML5::DOM::Tree self)
 CODE:
 	DOM_GC_TRACE("DOM::Tree::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
 	void *context = self->tree->context;
-	SvREFCNT_dec(self->parser);
 	myhtml_tree_destroy(self->tree);
-	free(context);
+	SvREFCNT_dec(self->parser);
+	safefree(context);
 
 
 
+#################################################################
+# HTML5::DOM::Node
+#################################################################
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Node
 HTML5::DOM::Node
 new(...)
@@ -625,11 +655,169 @@ CODE:
 	
 	if (sv) {
 		html5_dom_tree_t *tree = (html5_dom_tree_t *) self->tree->context;
-		SvREFCNT_dec(tree->sv);
 		myhtml_node_set_data(self, NULL);
+		SvREFCNT_dec(tree->sv);
 	}
 
 
+#################################################################
+# HTML5::DOM::CSS (Parser)
+#################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::CSS
+HTML5::DOM::CSS
+new(...)
+CODE:
+	DOM_GC_TRACE("DOM::CSS::new\n");
+	mystatus_t status;
+	
+	mycss_t *mycss = mycss_create();
+	status = mycss_init(mycss);
+	if (status) {
+		mycss_destroy(mycss, 1);
+		croak("mycss_init failed: %d", status);
+	}
+	
+	mycss_entry_t *entry = mycss_entry_create();
+	status = mycss_entry_init(mycss, entry);
+	if (status) {
+		mycss_destroy(mycss, 1);
+		mycss_entry_destroy(entry, 1);
+		croak("mycss_entry_init failed: %d", status);
+	}
+    
+	html5_css_parser_t *self = (html5_css_parser_t *) safemalloc(sizeof(html5_css_parser_t));
+	self->mycss = mycss;
+	self->entry = entry;
+	self->encoding = MyENCODING_UTF_8;
+    RETVAL = self;
+OUTPUT:
+	RETVAL
+
+# Parse css selector
+SV *
+parseSelector(HTML5::DOM::CSS self, SV *query)
+CODE:
+	mystatus_t status;
+	
+	query = sv_stringify(query);
+	
+	STRLEN query_len;
+	const char *query_str = SvPV_const(query, query_len);
+	
+    mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(self->entry), MyENCODING_UTF_8, query_str, query_len, &status);
+    if (list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
+		if (list)
+			mycss_selectors_list_destroy(mycss_entry_selectors(self->entry), list, true);
+		croak("bad selectors");
+	}
+	
+	DOM_GC_TRACE("DOM::CSS::Selector::NEW\n");
+	html5_css_selector_t *selector = (html5_css_selector_t *) safemalloc(sizeof(html5_css_selector_t));
+	selector->parent = SvRV(ST(0));
+	selector->list = list;
+	selector->parser = self;
+	SvREFCNT_inc(selector->parent);
+    RETVAL = pack_pointer("HTML5::DOM::CSS::Selector", selector);
+OUTPUT:
+	RETVAL
+
+void
+DESTROY(HTML5::DOM::CSS self)
+CODE:
+	DOM_GC_TRACE("DOM::CSS::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	mycss_entry_destroy(self->entry, 1);
+	mycss_destroy(self->mycss, 1);
+	safefree(self);
 
 
+#################################################################
+# HTML5::DOM::CSS::Selector
+#################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::CSS::Selector
 
+# Serialize selector to text
+SV *
+text(HTML5::DOM::CSS::Selector self)
+CODE:
+	RETVAL = newSVpv("", 0);
+	mycss_selectors_serialization_list(mycss_entry_selectors(self->parser->entry), self->list, sv_serialization_callback, RETVAL);
+OUTPUT:
+	RETVAL
+
+# Get count of selector entries
+int
+length(HTML5::DOM::CSS::Selector self)
+CODE:
+	RETVAL = self->list->entries_list_length;
+OUTPUT:
+	RETVAL
+
+# Get selector entry by index
+SV *
+entry(HTML5::DOM::CSS::Selector self, int index)
+CODE:
+	if (index < 0 || index >= self->list->entries_list_length) {
+		RETVAL = &PL_sv_undef;
+	} else {
+		DOM_GC_TRACE("DOM::CSS::Selector::Entry::NEW\n");
+		html5_css_selector_entry_t *entry = (html5_css_selector_entry_t *) safemalloc(sizeof(html5_css_selector_entry_t));
+		entry->parent = SvRV(ST(0));
+		entry->list = &self->list->entries_list[index];
+		entry->parser = self->parser;
+		SvREFCNT_inc(entry->parent);
+		RETVAL = pack_pointer("HTML5::DOM::CSS::Selector::Entry", entry);
+	}
+OUTPUT:
+	RETVAL
+
+void
+DESTROY(HTML5::DOM::CSS::Selector self)
+CODE:
+	DOM_GC_TRACE("DOM::CSS::Selector::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	mycss_selectors_list_destroy(mycss_entry_selectors(self->parser->entry), self->list, true);
+	SvREFCNT_dec(self->parent);
+	safefree(self);
+
+
+#################################################################
+# HTML5::DOM::CSS::Selector::Entry
+#################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::CSS::Selector::Entry
+
+# Serialize selector to text
+SV *
+text(HTML5::DOM::CSS::Selector::Entry self)
+CODE:
+	RETVAL = newSVpv("", 0);
+	mycss_selectors_serialization_chain(mycss_entry_selectors(self->parser->entry), self->list->entry, sv_serialization_callback, RETVAL);
+OUTPUT:
+	RETVAL
+
+SV *
+specificity(HTML5::DOM::CSS::Selector::Entry self)
+CODE:
+	HV *hash = newHV();
+	hv_store_ent(hash, sv_2mortal(newSVpv("a", 1)), newSViv(self->list->specificity.a), 0);
+	hv_store_ent(hash, sv_2mortal(newSVpv("b", 1)), newSViv(self->list->specificity.b), 0);
+	hv_store_ent(hash, sv_2mortal(newSVpv("c", 1)), newSViv(self->list->specificity.c), 0);
+	RETVAL = newRV_noinc((SV *) hash);
+OUTPUT:
+	RETVAL
+
+SV *
+specificityArray(HTML5::DOM::CSS::Selector::Entry self)
+CODE:
+	AV *arr = newAV();
+	av_push(arr, newSViv(self->list->specificity.b));
+	av_push(arr, newSViv(self->list->specificity.a));
+	av_push(arr, newSViv(self->list->specificity.c));
+	RETVAL = newRV_noinc((SV *) arr);
+OUTPUT:
+	RETVAL
+
+void
+DESTROY(HTML5::DOM::CSS::Selector::Entry self)
+CODE:
+	DOM_GC_TRACE("DOM::CSS::Selector::Entry::DESTROY (refs=%d)\n", SvREFCNT(SvRV(ST(0))));
+	SvREFCNT_dec(self->parent);
+	safefree(self);

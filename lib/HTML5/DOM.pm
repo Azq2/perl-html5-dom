@@ -4,6 +4,7 @@ use warnings;
 
 use HTML5::DOM::Node;
 use HTML5::DOM::Collection;
+use HTML5::DOM::CSS;
 
 our $VERSION = '0.01';
 require XSLoader;
