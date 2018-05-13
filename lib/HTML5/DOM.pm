@@ -5,6 +5,7 @@ use warnings;
 # Node types
 use HTML5::DOM::Node;
 use HTML5::DOM::Element;
+use HTML5::DOM::Fragment;
 use HTML5::DOM::Comment;
 use HTML5::DOM::DocType;
 use HTML5::DOM::Text;

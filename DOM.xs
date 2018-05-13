@@ -15,8 +15,8 @@
 
 #define node_is_element(node) (node->tag_id != MyHTML_TAG__UNDEF && node->tag_id != MyHTML_TAG__TEXT && node->tag_id != MyHTML_TAG__COMMENT && node->tag_id != MyHTML_TAG__DOCTYPE)
 
-#define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
-//#define DOM_GC_TRACE(...)
+//#define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
+#define DOM_GC_TRACE(...)
 
 #define sub_croak(cv, msg, ...) do { \
 	const GV *const __gv = CvGV(cv); \
@@ -41,6 +41,7 @@ typedef struct {
 	SV *sv;
 	myhtml_tree_t *tree;
 	html5_dom_parser_t *parser;
+	myhtml_tag_id_t fragment_tag_id;
 } html5_dom_tree_t;
 
 typedef struct {
@@ -142,6 +143,7 @@ static SV *create_tree_object(myhtml_tree_t *tree, SV *parent, html5_dom_parser_
 }
 
 static inline const char *get_node_class(myhtml_tree_node_t *node) {
+	html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
 	if (node->tag_id != MyHTML_TAG__UNDEF) {
 		if (node->tag_id == MyHTML_TAG__TEXT) {
 			return "HTML5::DOM::Text";
@@ -149,6 +151,8 @@ static inline const char *get_node_class(myhtml_tree_node_t *node) {
 			return "HTML5::DOM::Comment";
 		} else if (node->tag_id == MyHTML_TAG__DOCTYPE) {
 			return "HTML5::DOM::DocType";
+		} else if (context->fragment_tag_id && node->tag_id == context->fragment_tag_id) {
+			return "HTML5::DOM::Fragment";
 		}
 		return "HTML5::DOM::Element";
 	}
@@ -190,12 +194,11 @@ static myhtml_tree_node_t *html5_dom_copy_foreign_node(myhtml_tree_t *tree, myht
 		}
 	}
 	
-	// Wait, if node not yet done
-	if (node->token)
+	if (node->token) {
+		// Wait, if node not yet done
 		myhtml_token_node_wait_for_done(node->tree->token, node->token);
-	
-	// Copy node token
-	if (tree->token) {
+		
+		// Copy node token
 		new_node->token = myhtml_token_node_create(tree->token, tree->mcasync_rules_token_id);
 		if (!new_node->token) {
 			myhtml_tree_node_delete(new_node);
@@ -502,6 +505,46 @@ static void html5_tree_node_delete_recursive(myhtml_tree_node_t *node) {
 	}
 }
 
+static myhtml_tree_node_t *html5_dom_parse_fragment(myhtml_tree_t *tree, myhtml_tag_id_t tag_id, myhtml_namespace_t ns, 
+	const char *text, size_t length, mystatus_t *status_out)
+{
+	mystatus_t status;
+	
+	myhtml_t *parser = myhtml_tree_get_myhtml(tree);
+	
+	// cteate temorary tree
+	myhtml_tree_t *fragment_tree = myhtml_tree_create();
+	status = myhtml_tree_init(fragment_tree, parser);
+	if (status) {
+		*status_out = status;
+		myhtml_tree_destroy(tree);
+		return NULL;
+	}
+	
+	// parse fragment from text
+	status = myhtml_parse_fragment(fragment_tree, tree->encoding, text, length, tag_id, ns);
+	if (status) {
+		*status_out = status;
+		myhtml_tree_destroy(tree);
+		return NULL;
+	}
+	
+	// clone fragment from temporary tree to persistent tree
+	myhtml_tree_node_t *node = html5_dom_recursive_clone_node(tree, myhtml_tree_get_node_html(fragment_tree));
+	
+	if (node) {
+		html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
+		if (!context->fragment_tag_id)
+			context->fragment_tag_id = html5_dom_tag_id_by_name(tree, "-fragment", 9, true);
+		node->tag_id = context->fragment_tag_id;
+		myhtml_tree_destroy(fragment_tree);
+	}
+	
+	*status_out = status;
+	
+	return node;
+}
+
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
 
 #################################################################
@@ -671,6 +714,22 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Parse fragment
+SV *parseFragment(HTML5::DOM::Tree self, SV *text)
+CODE:
+	text = sv_stringify(text);
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	mystatus_t status;
+	
+	myhtml_tree_node_t *node = html5_dom_parse_fragment(self->tree, 0, 0, text_str, text_len, &status);
+	if (status)
+		sub_croak(cv, "myhtml_parse_fragment failed: %d (%s)", status, modest_strerror(status));
+	
+	RETVAL = node_to_sv(node);
+OUTPUT:
+	RETVAL
+
 SV *
 head(HTML5::DOM::Tree self)
 CODE:
@@ -720,9 +779,20 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Tag id by tag name
+SV *
+tag2id(HTML5::DOM::Tree self, SV *tag)
+CODE:
+	tag = sv_stringify(tag);
+	STRLEN tag_len;
+	const char *tag_str = SvPV_const(tag, tag_len);
+	RETVAL = newSViv(html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, true));
+OUTPUT:
+	RETVAL
+
 # Tag name by tag id
 SV *
-id2tag(HTML5::DOM::Node self, int tag_id)
+id2tag(HTML5::DOM::Tree self, int tag_id)
 CODE:
 	RETVAL = &PL_sv_undef;
 	const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(self->tree->tags, tag_id);
@@ -733,7 +803,7 @@ OUTPUT:
 
 # Namespace id by namepsace name
 SV *
-namespace2id(HTML5::DOM::Node self, SV *ns)
+namespace2id(HTML5::DOM::Tree self, SV *ns)
 CODE:
 	ns = sv_stringify(ns);
 	STRLEN ns_len;
@@ -749,7 +819,7 @@ OUTPUT:
 
 # Namespace name by namepsace id
 SV *
-id2namespace(HTML5::DOM::Node self, int ns_id)
+id2namespace(HTML5::DOM::Tree self, int ns_id)
 CODE:
 	size_t ns_len = 0;
 	const char *ns_name = myhtml_namespace_name_by_id(ns_id, &ns_len);
@@ -1056,10 +1126,32 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# True if node is void
 bool
-selfClosed(HTML5::DOM::Node self)
+isVoid(HTML5::DOM::Node self)
+CODE:
+	RETVAL = myhtml_node_is_void_element(self);
+OUTPUT:
+	RETVAL
+
+# True if node is self-closed
+bool
+isSelfClosed(HTML5::DOM::Node self)
 CODE:
 	RETVAL = myhtml_node_is_close_self(self);
+OUTPUT:
+	RETVAL
+
+# Node position in text input
+SV *
+position(HTML5::DOM::Node self)
+CODE:
+	HV *hash = newHV();
+	hv_store_ent(hash, sv_2mortal(newSVpv("raw_begin", 9)), newSViv(self->token ? self->token->raw_begin : 0), 0);
+	hv_store_ent(hash, sv_2mortal(newSVpv("raw_length", 10)), newSViv(self->token ? self->token->raw_length : 0), 0);
+	hv_store_ent(hash, sv_2mortal(newSVpv("element_begin", 13)), newSViv(self->token ? self->token->element_begin : 0), 0);
+	hv_store_ent(hash, sv_2mortal(newSVpv("element_length", 14)), newSViv(self->token ? self->token->element_length : 0), 0);
+	RETVAL = newRV_noinc((SV *) hash);
 OUTPUT:
 	RETVAL
 
