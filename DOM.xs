@@ -480,6 +480,78 @@ static SV *html5_node_find(CV *cv, html5_dom_parser_t *parser, myhtml_tree_node_
 	return result;
 }
 
+static SV *html5_node_simple_find(CV *cv, myhtml_tree_node_t *self, SV *key, SV *val, SV *cmp, bool icase, int ix) {
+	SV *result = &PL_sv_undef;
+	key = sv_stringify(key);
+	
+	STRLEN key_len;
+	const char *key_str = SvPV_const(key, key_len);
+	
+	myhtml_collection_t *collection = NULL;
+	switch (ix) {
+		case 0: case 1: // tag name
+			collection = myhtml_get_nodes_by_name_in_scope(self->tree, NULL, self, key_str, key_len, NULL);
+			result = collection_to_blessed_array(collection);
+		break;
+		case 2: case 3: // class
+			collection = myhtml_get_nodes_by_attribute_value_whitespace_separated(self->tree, NULL, self, false, "class", 5, key_str, key_len, NULL);
+			result = collection_to_blessed_array(collection);
+		break;
+		case 4: case 5: // id (first)
+			collection = myhtml_get_nodes_by_attribute_value(self->tree, NULL, self, false, "id", 2, key_str, key_len, NULL);
+			if (collection && collection->length)
+				result = node_to_sv(collection->list[0]);
+		break;
+		case 6: case 7: // attribute
+			if (val) {
+				STRLEN val_len;
+				const char *val_str = SvPV_const(val, val_len);
+				
+				char cmp_type = '=';
+				if (cmp) {
+					cmp = sv_stringify(cmp);
+					STRLEN cmp_len;
+					const char *cmp_str = SvPV_const(cmp, cmp_len);
+					
+					if (cmp_len)
+						cmp_type = cmp_str[0];
+				}
+				
+				if (cmp_type == '=') {
+					// [key=val]
+					collection = myhtml_get_nodes_by_attribute_value(self->tree, NULL, self, icase, key_str, key_len, val_str, val_len, NULL);
+				} else if (cmp_type == '~') {
+					// [key~=val]
+					collection = myhtml_get_nodes_by_attribute_value_whitespace_separated(self->tree, NULL, self, icase, key_str, key_len, val_str, val_len, NULL);
+				} else if (cmp_type == '^') {
+					// [key^=val]
+					collection = myhtml_get_nodes_by_attribute_value_begin(self->tree, NULL, self, icase, key_str, key_len, val_str, val_len, NULL);
+				} else if (cmp_type == '$') {
+					// [key$=val]
+					collection = myhtml_get_nodes_by_attribute_value_end(self->tree, NULL, self, icase, key_str, key_len, val_str, val_len, NULL);
+				} else if (cmp_type == '*') {
+					// [key*=val]
+					collection = myhtml_get_nodes_by_attribute_value_contain(self->tree, NULL, self, icase, key_str, key_len, val_str, val_len, NULL);
+				} else if (cmp_type == '|') {
+					// [key|=val]
+					collection = myhtml_get_nodes_by_attribute_value_hyphen_separated(self->tree, NULL, self, icase, key_str, key_len, val_str, val_len, NULL);
+				} else {
+					sub_croak(cv, "unknown cmp type: %c", cmp_type);
+				}
+			} else {
+				// [key]
+				collection = myhtml_get_nodes_by_attribute_key(self->tree, NULL, self, key_str, key_len, NULL);
+			}
+			result = collection_to_blessed_array(collection);
+		break;
+	}
+	
+	if (collection)
+		myhtml_collection_destroy(collection);
+	
+	return result;
+}
+
 static myhtml_tree_node_t *html5_dom_recursive_clone_node(myhtml_tree_t *tree, myhtml_tree_node_t *node) {
 	myhtml_tree_node_t *new_node = html5_dom_copy_foreign_node(tree, node);
 	myhtml_tree_node_t *child = myhtml_node_child(node);
@@ -774,28 +846,34 @@ OUTPUT:
 SV *
 find(HTML5::DOM::Tree self, SV *query, SV *combinator = NULL)
 ALIAS:
-	at = 1
+	at					= 1
+	querySelector		= 2
+	querySelectorAll	= 3
 CODE:
 	myhtml_tree_node_t *scope = myhtml_tree_get_document(self->tree);
 	if (!scope)
 		scope = myhtml_tree_get_node_html(self->tree);
-	RETVAL = html5_node_find(cv, self->parser, scope, query, combinator, ix == 1);
+	RETVAL = html5_node_find(cv, self->parser, scope, query, combinator, ix == 1 || ix == 2);
 OUTPUT:
 	RETVAL
 
+# findTag(val), getElementsByTagName(val)									- get nodes by tag name
+# findClass(val), getElementsByClassName(val)								- get nodes by class name
+# findId(val), getElementById(val)											- get node by id
+# findAttr(key), getElementByAttribute(key)									- get nodes by attribute key
+# findAttr(key, val, case, cmp), getElementByAttribute(key, val, case, cmp)	- get nodes by attribute value
 SV *
-findTag(HTML5::DOM::Tree self, SV *tag)
+findTag(HTML5::DOM::Tree self, SV *key, SV *val = NULL, bool icase = false, SV *cmp = NULL)
+ALIAS:
+	getElementsByTagName	= 1
+	findClass				= 2
+	getElementsByClassName	= 3
+	findId					= 4
+	getElementById			= 5
+	findAttr				= 6
+	getElementByAttribute	= 7
 CODE:
-	tag = sv_stringify(tag);
-	
-	STRLEN tag_len;
-	const char *tag_str = SvPV_const(tag, tag_len);
-	
-	myhtml_collection_t *collection = myhtml_get_nodes_by_name(self->tree, NULL, tag_str, tag_len, NULL);
-	RETVAL = collection_to_blessed_array(collection);
-	
-	if (collection)
-		myhtml_collection_destroy(collection);
+	RETVAL = html5_node_simple_find(cv, myhtml_tree_get_document(self->tree), key, val, cmp, icase, ix);
 OUTPUT:
 	RETVAL
 
@@ -1143,8 +1221,10 @@ CODE:
 	if (!myhtml_node_parent(self))
 		sub_croak(cv, "can't insert after detached node");
 	
-	if (self->tree != child->tree)
+	if (self->tree != child->tree) {
+		myhtml_tree_node_remove(child);
 		child = html5_dom_recursive_clone_node(self->tree, child);
+	}
 	
 	myhtml_tree_node_insert_before(self, child);
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -1158,8 +1238,10 @@ CODE:
 	if (!myhtml_node_parent(self))
 		sub_croak(cv, "can't insert before detached node");
 	
-	if (self->tree != child->tree)
+	if (self->tree != child->tree) {
+		myhtml_tree_node_remove(child);
 		child = html5_dom_recursive_clone_node(self->tree, child);
+	}
 	
 	myhtml_tree_node_insert_after(self, child);
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -1173,8 +1255,10 @@ CODE:
 	if (!node_is_element(self))
 		sub_croak(cv, "can't append children to non-element node");
 	
-	if (self->tree != child->tree)
+	if (self->tree != child->tree) {
+		myhtml_tree_node_remove(child);
 		child = html5_dom_recursive_clone_node(self->tree, child);
+	}
 	
 	myhtml_tree_node_add_child(self, child);
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -1188,8 +1272,10 @@ CODE:
 	if (!node_is_element(self))
 		sub_croak(cv, "can't append children to non-element node");
 	
-	if (self->tree != child->tree)
+	if (self->tree != child->tree) {
+		myhtml_tree_node_remove(child);
 		child = html5_dom_recursive_clone_node(self->tree, child);
+	}
 	
 	myhtml_tree_node_t *first_node = myhtml_node_child(self);
 	if (first_node) {
@@ -1202,14 +1288,34 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Replace node with child
+SV *
+replace(HTML5::DOM::Node self, HTML5::DOM::Node child)
+CODE:
+	if (!node_is_element(self))
+		sub_croak(cv, "can't append children to non-element node");
+	
+	if (self->tree != child->tree) {
+		myhtml_tree_node_remove(child);
+		child = html5_dom_recursive_clone_node(self->tree, child);
+	}
+	
+	myhtml_tree_node_insert_before(self, child);
+	myhtml_tree_node_remove(self);
+	
+	RETVAL = SvREFCNT_inc(ST(0));
+OUTPUT:
+	RETVAL
+
 # Clone node
 SV *
-clone(HTML5::DOM::Node self, bool deep = false)
+clone(HTML5::DOM::Node self, bool deep = false, HTML5::DOM::Tree new_tree = NULL)
 CODE:
+	myhtml_tree_t *tree = new_tree ? new_tree->tree : self->tree;
 	if (deep) {
-		RETVAL = node_to_sv(html5_dom_recursive_clone_node(self->tree, self));
+		RETVAL = node_to_sv(html5_dom_recursive_clone_node(tree, self));
 	} else {
-		RETVAL = node_to_sv(html5_dom_copy_foreign_node(self->tree, self));
+		RETVAL = node_to_sv(html5_dom_copy_foreign_node(tree, self));
 	}
 OUTPUT:
 	RETVAL
@@ -1281,27 +1387,32 @@ CODE:
 SV *
 find(HTML5::DOM::Node self, SV *query, SV *combinator = NULL)
 ALIAS:
-	at = 1
+	at					= 1
+	querySelector		= 2
+	querySelectorAll	= 3
 CODE:
 	html5_dom_tree_t *tree_context = (html5_dom_tree_t *) self->tree->context;
-	RETVAL = html5_node_find(cv, tree_context->parser, self, query, combinator, ix == 1);
+	RETVAL = html5_node_find(cv, tree_context->parser, self, query, combinator, ix == 1 || ix == 2);
 OUTPUT:
 	RETVAL
 
-# Find by tag name
+# findTag(val), getElementsByTagName(val)									- get nodes by tag name
+# findClass(val), getElementsByClassName(val)								- get nodes by class name
+# findId(val), getElementById(val)											- get node by id
+# findAttr(key), getElementByAttribute(key)									- get nodes by attribute key
+# findAttr(key, val, case, cmp), getElementByAttribute(key, val, case, cmp)	- get nodes by attribute value
 SV *
-findTag(HTML5::DOM::Node self, SV *tag)
+findTag(HTML5::DOM::Node self, SV *key, SV *val = NULL, bool icase = false, SV *cmp = NULL)
+ALIAS:
+	getElementsByTagName	= 1
+	findClass				= 2
+	getElementsByClassName	= 3
+	findId					= 4
+	getElementById			= 5
+	findAttr				= 6
+	getElementByAttribute	= 7
 CODE:
-	tag = sv_stringify(tag);
-	
-	STRLEN tag_len;
-	const char *tag_str = SvPV_const(tag, tag_len);
-	
-	myhtml_collection_t *collection = myhtml_get_nodes_by_name_in_scope(self->tree, NULL, self, tag_str, tag_len, NULL);
-	RETVAL = collection_to_blessed_array(collection);
-	
-	if (collection)
-		myhtml_collection_destroy(collection);
+	RETVAL = html5_node_simple_find(cv, self, key, val, cmp, icase, ix);
 OUTPUT:
 	RETVAL
 
