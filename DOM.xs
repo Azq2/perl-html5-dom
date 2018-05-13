@@ -496,9 +496,10 @@ static void html5_tree_node_delete_recursive(myhtml_tree_node_t *node) {
 		myhtml_tree_node_t *child = myhtml_node_child(node);
 		if (child) {
 			while (child) {
+				myhtml_tree_node_t *next = myhtml_node_next(child);
 				myhtml_tree_node_remove(child);
 				html5_tree_node_delete_recursive(child);
-				child = myhtml_node_next(child);
+				child = next;
 			}
 		}
 		myhtml_tree_node_delete(node);
@@ -715,14 +716,33 @@ OUTPUT:
 	RETVAL
 
 # Parse fragment
-SV *parseFragment(HTML5::DOM::Tree self, SV *text)
+SV *parseFragment(HTML5::DOM::Tree self, SV *text, SV *tag = NULL, SV *ns = NULL)
 CODE:
 	text = sv_stringify(text);
 	STRLEN text_len;
 	const char *text_str = SvPV_const(text, text_len);
-	mystatus_t status;
 	
-	myhtml_tree_node_t *node = html5_dom_parse_fragment(self->tree, 0, 0, text_str, text_len, &status);
+	mystatus_t status;
+	myhtml_namespace_t ns_id = MyHTML_NAMESPACE_HTML;
+	myhtml_tag_id_t tag_id = MyHTML_TAG_DIV;
+	
+	if (ns) {
+		ns = sv_stringify(ns);
+		STRLEN ns_len;
+		const char *ns_str = SvPV_const(ns, ns_len);
+		
+		if (myhtml_namespace_id_by_name(ns_str, ns_len, &ns_id))
+			sub_croak(cv, "unknown namespace: %s", ns_str);
+	}
+	
+	if (tag) {
+		tag = sv_stringify(tag);
+		STRLEN tag_len;
+		const char *tag_str = SvPV_const(tag, tag_len);
+		tag_id = html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, true);
+	}
+	
+	myhtml_tree_node_t *node = html5_dom_parse_fragment(self->tree, tag_id, ns_id, text_str, text_len, &status);
 	if (status)
 		sub_croak(cv, "myhtml_parse_fragment failed: %d (%s)", status, modest_strerror(status));
 	
@@ -842,14 +862,6 @@ CODE:
 # HTML5::DOM::Node
 #################################################################
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Node
-HTML5::DOM::Node
-new(...)
-CODE:
-	sub_croak(cv, "Can't manualy create node");
-	RETVAL = NULL;
-OUTPUT:
-	RETVAL
-
 # Tag id
 SV *
 tagId(HTML5::DOM::Node self, int new_tag_id = -1)
@@ -944,51 +956,127 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Serialize tree to html
+# Non-recursive html serialization (example: <div id="some_id">)
 SV *
-html(HTML5::DOM::Node self, bool recursive = 1)
+nodeHtml(HTML5::DOM::Node self, SV *text = NULL)
 CODE:
 	RETVAL = newSVpv("", 0);
-	if (recursive) {
-		if (self->tag_id == MyHTML_TAG__UNDEF) { // hack for document node :(
+	myhtml_serialization_node_callback(self, sv_serialization_callback, RETVAL);
+OUTPUT:
+	RETVAL
+
+# Node::text()			- Serialize tree to text
+# Node::html(text)		- Ignore
+# Element::html(text)	- Remove all children nodes and add parsed fragment, return self
+SV *
+html(HTML5::DOM::Node self, SV *text = NULL)
+ALIAS:
+	innerHTML	= 1
+	outerHTML	= 2
+CODE:
+	if (text) {
+		if (ix == 2)
+			sub_croak(cv, "outerHTML is read only");
+		
+		text = sv_stringify(text);
+		STRLEN text_len;
+		const char *text_str = SvPV_const(text, text_len);
+		
+		if (node_is_element(self)) { // parse fragment and replace all node childrens with it
+			// parse fragment
+			mystatus_t status;
+			myhtml_tree_node_t *fragment = html5_dom_parse_fragment(self->tree, self->tag_id, myhtml_node_namespace(self), text_str, text_len, &status);
+			if (status)
+				sub_croak(cv, "myhtml_parse_fragment failed: %d (%s)", status, modest_strerror(status));
+			
+			// remove all child nodes
+			myhtml_tree_node_t *node = myhtml_node_child(self);
+			while (node) {
+				myhtml_tree_node_t *next = myhtml_node_next(node);
+				myhtml_tree_node_remove(node);
+				html5_tree_node_delete_recursive(node);
+				node = next;
+			}
+			
+			myhtml_tree_node_add_child(self, fragment);
+			
+			// add fragment
+			node = myhtml_node_child(fragment);
+			while (node) {
+				myhtml_tree_node_t *next = myhtml_node_next(node);
+				myhtml_tree_node_remove(node);
+				myhtml_tree_node_add_child(self, node);
+				node = next;
+			}
+			
+			// free fragment
+			html5_tree_node_delete_recursive(fragment);
+		} else { // same as nodeValue, why not?
+			myhtml_node_text_set(self, text_str, text_len, self->tree->encoding);
+		}
+		RETVAL = SvREFCNT_inc(ST(0));
+	} else {
+		RETVAL = newSVpv("", 0);
+		if (self->tag_id == MyHTML_TAG__UNDEF || ix == 1) { // innerHTML
 			myhtml_tree_node_t *node = myhtml_node_child(self);
 			while (node) {
 				myhtml_serialization_tree_callback(node, sv_serialization_callback, RETVAL);
 				node = myhtml_node_next(node);
 			}
-		} else {
+		} else { // outerHTML
 			myhtml_serialization_tree_callback(self, sv_serialization_callback, RETVAL);
 		}
-	} else {
-		myhtml_serialization_node_callback(self, sv_serialization_callback, RETVAL);
 	}
 OUTPUT:
 	RETVAL
 
-# Serialize tree to text
+# Node::text()			- Serialize tree to text
+# Node::text(text)		- Set node value, return self
+# Element::text(text)	- Remove all children nodes and add text node, return self
 SV *
-text(HTML5::DOM::Node self, bool recursive = 1)
+text(HTML5::DOM::Node self, SV *text = NULL)
+ALIAS:
+	nodeValue	= 1
+	innerText	= 2
+	textContent	= 3
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	if (!node_is_element(self)) {
-		size_t text_len = 0;
-		const char *text = myhtml_node_text(self, &text_len);
-		RETVAL = newSVpv(text ? text : "", text_len);
+		if (text) { // set node value
+			text = sv_stringify(text);
+			STRLEN text_len;
+			const char *text_str = SvPV_const(text, text_len);
+			
+			myhtml_node_text_set(self, text_str, text_len, self->tree->encoding);
+			RETVAL = SvREFCNT_inc(ST(0));
+		} else { // get node value
+			size_t text_len = 0;
+			const char *text = myhtml_node_text(self, &text_len);
+			RETVAL = newSVpv(text ? text : "", text_len);
+		}
+	} else if (ix == 1) { // nodeValue can't used for elements
+		RETVAL = &PL_sv_undef;
 	} else {
-		RETVAL = newSVpv("", 0);
-		if (recursive) {
-			html5_dom_recursive_node_text(self, RETVAL);
-		} else {
+		if (text) { // remove all childrens and add text node
+			text = sv_stringify(text);
+			STRLEN text_len;
+			const char *text_str = SvPV_const(text, text_len);
+			
 			myhtml_tree_node_t *node = myhtml_node_child(self);
 			while (node) {
-				if (node->tag_id == MyHTML_TAG__TEXT) {
-					size_t text_len = 0;
-					const char *text = myhtml_node_text(node, &text_len);
-					if (text_len)
-						sv_catpvn(RETVAL, text, text_len);
-				}
-				node = myhtml_node_next(node);
+				myhtml_tree_node_t *next = myhtml_node_next(node);
+				myhtml_tree_node_remove(node);
+				html5_tree_node_delete_recursive(node);
+				node = next;
 			}
+			
+			myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
+			myhtml_node_text_set(text_node, text_str, text_len, self->tree->encoding);
+			myhtml_tree_node_add_child(self, text_node);
+			RETVAL = SvREFCNT_inc(ST(0));
+		} else { // recursive serialize node to text
+			RETVAL = newSVpv("", 0);
+			html5_dom_recursive_node_text(self, RETVAL);
 		}
 	}
 OUTPUT:
