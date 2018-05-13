@@ -8,6 +8,7 @@ use HTML5::DOM::Element;
 use HTML5::DOM::Comment;
 use HTML5::DOM::DocType;
 use HTML5::DOM::Text;
+use HTML5::DOM::Document;
 
 use HTML5::DOM::Tree;
 use HTML5::DOM::Collection;

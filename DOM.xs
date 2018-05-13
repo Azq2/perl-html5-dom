@@ -9,10 +9,14 @@
 #include <mycss/selectors/init.h>
 #include <mycss/selectors/serialization.h>
 
+// sv_derived_from_pvn faster than sv_derived_from
+#undef sv_derived_from
+#define sv_derived_from(sv, name) sv_derived_from_pvn(sv, name, sizeof(name) - 1, 0)
+
 #define node_is_element(node) (node->tag_id != MyHTML_TAG__UNDEF && node->tag_id != MyHTML_TAG__TEXT && node->tag_id != MyHTML_TAG__COMMENT && node->tag_id != MyHTML_TAG__DOCTYPE)
 
-// #define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
-#define DOM_GC_TRACE(...)
+#define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
+//#define DOM_GC_TRACE(...)
 
 #define sub_croak(cv, msg, ...) do { \
 	const GV *const __gv = CvGV(cv); \
@@ -137,18 +141,94 @@ static SV *create_tree_object(myhtml_tree_t *tree, SV *parent, html5_dom_parser_
 	return sv;
 }
 
-static inline const char *get_node_class(myhtml_tag_id_t tag_id) {
-	if (tag_id != MyHTML_TAG__UNDEF) {
-		if (tag_id == MyHTML_TAG__TEXT) {
+static inline const char *get_node_class(myhtml_tree_node_t *node) {
+	if (node->tag_id != MyHTML_TAG__UNDEF) {
+		if (node->tag_id == MyHTML_TAG__TEXT) {
 			return "HTML5::DOM::Text";
-		} else if (tag_id == MyHTML_TAG__COMMENT) {
+		} else if (node->tag_id == MyHTML_TAG__COMMENT) {
 			return "HTML5::DOM::Comment";
-		} else if (tag_id == MyHTML_TAG__DOCTYPE) {
+		} else if (node->tag_id == MyHTML_TAG__DOCTYPE) {
 			return "HTML5::DOM::DocType";
 		}
 		return "HTML5::DOM::Element";
 	}
+	
+	// Modest myhtml bug - document node has tag_id == MyHTML_TAG__UNDEF
+	if (!node->parent && node == myhtml_tree_get_document(node->tree))
+		return "HTML5::DOM::Document";
+	
 	return "HTML5::DOM::Node";
+}
+
+static myhtml_tag_id_t html5_dom_tag_id_by_name(myhtml_tree_t *tree, const char *tag_str, size_t tag_len, bool allow_create) {
+	const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_name(tree->tags, tag_str, tag_len);
+	if (tag_ctx) {
+		return tag_ctx->id;
+	} else if (allow_create) {
+		// add custom tag
+		return myhtml_tag_add(tree->tags, tag_str, tag_len, MyHTML_TOKENIZER_STATE_DATA, true);
+	}
+	return MyHTML_TAG__UNDEF;
+}
+
+// Safe copy node from native or foreign tree
+static myhtml_tree_node_t *html5_dom_copy_foreign_node(myhtml_tree_t *tree, myhtml_tree_node_t *node) {
+	// Create new node
+	myhtml_tree_node_t *new_node = myhtml_tree_node_create(tree);
+	new_node->tag_id		= node->tag_id;
+	new_node->ns			= node->ns;
+	
+	// Copy custom tag
+	if (tree != node->tree && node->tag_id >= MyHTML_TAG_LAST_ENTRY) {
+		new_node->tag_id = MyHTML_TAG__UNDEF;
+		
+		// Get tag name in foreign tree
+		const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(node->tree->tags, node->tag_id);
+		if (tag_ctx) {
+			// Get same tag in native tree
+			new_node->tag_id = html5_dom_tag_id_by_name(tree, tag_ctx->name, tag_ctx->name_length, true);
+		}
+	}
+	
+	// Wait, if node not yet done
+	if (node->token)
+		myhtml_token_node_wait_for_done(node->tree->token, node->token);
+	
+	// Copy node token
+	if (tree->token) {
+		new_node->token = myhtml_token_node_create(tree->token, tree->mcasync_rules_token_id);
+		if (!new_node->token) {
+			myhtml_tree_node_delete(new_node);
+			return NULL;
+		}
+		
+		new_node->token->tag_id			= node->token->tag_id;
+		new_node->token->type			= node->token->type;
+		new_node->token->attr_first		= NULL;
+		new_node->token->attr_last		= NULL;
+		new_node->token->raw_begin		= tree != node->tree ? 0 : node->token->raw_begin;
+		new_node->token->raw_length		= tree != node->tree ? 0 : node->token->raw_length;
+		new_node->token->element_begin	= tree != node->tree ? 0 : node->token->element_begin;
+		new_node->token->element_length	= tree != node->tree ? 0 : node->token->element_length;
+		new_node->token->type			= new_node->token->type | MyHTML_TOKEN_TYPE_DONE;
+		
+		// Copy text data (TODO: encoding)
+		if (node->token->str.length) {
+			mycore_string_init(tree->mchar, tree->mchar_node_id, &new_node->token->str, node->token->str.length + 1);
+			mycore_string_append(&new_node->token->str, node->token->str.data, node->token->str.length);
+		} else {
+			mycore_string_clean_all(&new_node->token->str);
+		}
+		
+		// Copy node attributes
+		myhtml_token_attr_t *attr = node->token->attr_first;
+		while (attr) {
+			myhtml_token_attr_copy(tree->token, attr, new_node->token, tree->mcasync_rules_attr_id);
+			attr = attr->next;
+		}
+	}
+    
+    return new_node;
 }
 
 static SV *node_to_sv(myhtml_tree_node_t *node) {
@@ -157,7 +237,7 @@ static SV *node_to_sv(myhtml_tree_node_t *node) {
 	
 	SV *sv = (SV *) myhtml_node_get_data(node);
 	if (!sv) {
-		SV *sv_ref = pack_pointer(get_node_class(node->tag_id), (void *) node);
+		SV *sv_ref = pack_pointer(get_node_class(node), (void *) node);
 		sv = SvRV(sv_ref);
 		myhtml_node_set_data(node, (void *) sv);
 		
@@ -254,7 +334,7 @@ static mycss_selectors_list_t *html5_parse_selector(mycss_entry_t *entry, const 
 	return list;
 }
 
-static void _modest_finder_callback_found_width_one_node(modest_finder_t *finder, myhtml_tree_node_t *node, 
+static void _modest_finder_callback_found_with_one_node(modest_finder_t *finder, myhtml_tree_node_t *node, 
 	mycss_selectors_list_t *selector_list, mycss_selectors_entry_t *selector, mycss_selectors_specificity_t *spec, void *ctx)
 {
 	myhtml_tree_node_t **result_node = (myhtml_tree_node_t **) ctx;
@@ -287,7 +367,7 @@ static void *html5_node_finder(html5_dom_parser_t *parser, modest_finder_selecto
 		myhtml_tree_node_t *node = NULL;
 		for (size_t i = 0; i < list_size; ++i) {
 			func(parser->finder, scope, NULL, list[i].entry, &list[i].specificity, 
-				_modest_finder_callback_found_width_one_node, &node);
+				_modest_finder_callback_found_with_one_node, &node);
 			
 			if (node)
 				break;
@@ -395,6 +475,31 @@ static SV *html5_node_find(CV *cv, html5_dom_parser_t *parser, myhtml_tree_node_
 		mycss_selectors_list_destroy(mycss_entry_selectors(parser->mycss_entry), selector, true);
 	
 	return result;
+}
+
+static myhtml_tree_node_t *html5_dom_recursive_clone_node(myhtml_tree_t *tree, myhtml_tree_node_t *node) {
+	myhtml_tree_node_t *new_node = html5_dom_copy_foreign_node(tree, node);
+	myhtml_tree_node_t *child = myhtml_node_child(node);
+	while (child) {
+		myhtml_tree_node_add_child(new_node, html5_dom_recursive_clone_node(tree, child));
+		child = myhtml_node_next(child);
+	}
+	return new_node;
+}
+
+// Safe delete nodes only if it has not perl object representation
+static void html5_tree_node_delete_recursive(myhtml_tree_node_t *node) {
+	if (!myhtml_node_get_data(node)) {
+		myhtml_tree_node_t *child = myhtml_node_child(node);
+		if (child) {
+			while (child) {
+				myhtml_tree_node_remove(child);
+				html5_tree_node_delete_recursive(child);
+				child = myhtml_node_next(child);
+			}
+		}
+		myhtml_tree_node_delete(node);
+	}
 }
 
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
@@ -535,17 +640,9 @@ CODE:
 	tag = sv_stringify(tag);
 	STRLEN tag_len;
 	const char *tag_str = SvPV_const(tag, tag_len);
+	myhtml_tag_id_t tag_id = html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, true);
 	
-	myhtml_tag_id_t tag_id;
-	const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_name(self->tree->tags, tag_str, tag_len);
-	if (tag_ctx) {
-		tag_id = tag_ctx->id;
-	} else {
-		// add custom tag
-		tag_id = myhtml_tag_add(self->tree->tags, tag_str, tag_len, MyHTML_TOKENIZER_STATE_DATA, true);
-	}
-	
-	// create new tag
+	// create new node
 	RETVAL = node_to_sv(myhtml_node_create(self->tree, tag_id, ns));
 OUTPUT:
 	RETVAL
@@ -623,6 +720,43 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Tag name by tag id
+SV *
+id2tag(HTML5::DOM::Node self, int tag_id)
+CODE:
+	RETVAL = &PL_sv_undef;
+	const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(self->tree->tags, tag_id);
+	if (tag_ctx)
+		RETVAL = newSVpv(tag_ctx->name ? tag_ctx->name : "", tag_ctx->name_length);
+OUTPUT:
+	RETVAL
+
+# Namespace id by namepsace name
+SV *
+namespace2id(HTML5::DOM::Node self, SV *ns)
+CODE:
+	ns = sv_stringify(ns);
+	STRLEN ns_len;
+	const char *ns_str = SvPV_const(ns, ns_len);
+	
+	myhtml_namespace_t ns_id;
+	if (!myhtml_namespace_id_by_name(ns_str, ns_len, &ns_id))
+		ns_id = MyHTML_NAMESPACE_UNDEF;
+	
+	RETVAL = newSViv(ns_id);
+OUTPUT:
+	RETVAL
+
+# Namespace name by namepsace id
+SV *
+id2namespace(HTML5::DOM::Node self, int ns_id)
+CODE:
+	size_t ns_len = 0;
+	const char *ns_name = myhtml_namespace_name_by_id(ns_id, &ns_len);
+	RETVAL = ns_name ? newSVpv(ns_name, ns_len) : &PL_sv_undef;
+OUTPUT:
+	RETVAL
+
 void
 DESTROY(HTML5::DOM::Tree self)
 CODE:
@@ -647,25 +781,95 @@ OUTPUT:
 	RETVAL
 
 # Tag id
-int
-tagId(HTML5::DOM::Node self)
+SV *
+tagId(HTML5::DOM::Node self, int new_tag_id = -1)
 CODE:
-	RETVAL = self->tag_id;
+	if (new_tag_id >= 0) {
+		const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(self->tree->tags, new_tag_id);
+		if (tag_ctx) {
+			self->tag_id = new_tag_id;
+		} else {
+			sub_croak(cv, "unknown tag id %d", new_tag_id);
+		}
+		
+		RETVAL = SvREFCNT_inc(ST(0));
+	} else {
+		RETVAL = newSViv(self->tag_id);
+	}
+OUTPUT:
+	RETVAL
+
+# Namespace id
+SV *
+namespaceId(HTML5::DOM::Node self, int new_ns_id = -1)
+CODE:
+	if (new_ns_id >= 0) {
+		if (!myhtml_namespace_name_by_id(new_ns_id, NULL)) {
+			sub_croak(cv, "unknown namespace id %d", new_ns_id);
+		} else {
+			myhtml_node_namespace_set(self, new_ns_id);
+		}
+		RETVAL = SvREFCNT_inc(ST(0));
+	} else {
+		RETVAL = newSViv(myhtml_node_namespace(self));
+	}
 OUTPUT:
 	RETVAL
 
 # Tag name
 SV *
-tag(HTML5::DOM::Node self)
+tag(HTML5::DOM::Node self, SV *new_tag_name = NULL)
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	
-	RETVAL = &PL_sv_undef;
+	// Set new tag name
+	if (new_tag_name) {
+		new_tag_name = sv_stringify(new_tag_name);
+		STRLEN new_tag_name_len;
+		const char *new_tag_name_str = SvPV_const(new_tag_name, new_tag_name_len);
+		
+		myhtml_tag_id_t tag_id = html5_dom_tag_id_by_name(self->tree, new_tag_name_str, new_tag_name_len, true);
+		self->tag_id = tag_id;
+		
+		RETVAL = SvREFCNT_inc(ST(0));
+	}
+	// Get tag name
+	else {
+		RETVAL = &PL_sv_undef;
+		
+		if (tree && tree->tags) {
+			const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(tree->tags, self->tag_id);
+			if (tag_ctx)
+				RETVAL = newSVpv(tag_ctx->name, tag_ctx->name_length);
+		}
+	}
+OUTPUT:
+	RETVAL
+
+# Namespace name
+SV *
+namespace(HTML5::DOM::Node self, SV *new_ns = NULL)
+CODE:
+	myhtml_tree_t *tree = self->tree;
 	
-	if (tree && tree->tags) {
-		const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(tree->tags, self->tag_id);
-		if (tag_ctx)
-			RETVAL = newSVpv(tag_ctx->name, tag_ctx->name_length);
+	// Set new tag namespace
+	if (new_ns) {
+		new_ns = sv_stringify(new_ns);
+		STRLEN new_ns_len;
+		const char *new_ns_str = SvPV_const(new_ns, new_ns_len);
+		
+		myhtml_namespace_t ns;
+		if (!myhtml_namespace_id_by_name(new_ns_str, new_ns_len, &ns))
+			sub_croak(cv, "unknown namespace: %s", new_ns_str);
+		myhtml_node_namespace_set(self, ns);
+		
+		RETVAL = SvREFCNT_inc(ST(0));
+	}
+	// Get namespace name
+	else {
+		size_t ns_name_len;
+		const char *ns_name = myhtml_namespace_name_by_id(myhtml_node_namespace(self), &ns_name_len);
+		RETVAL = newSVpv(ns_name ? ns_name : "", ns_name_len);
 	}
 OUTPUT:
 	RETVAL
@@ -780,6 +984,10 @@ before(HTML5::DOM::Node self, HTML5::DOM::Node child)
 CODE:
 	if (!myhtml_node_parent(self))
 		sub_croak(cv, "can't insert after detached node");
+	
+	if (self->tree != child->tree)
+		child = html5_dom_recursive_clone_node(self->tree, child);
+	
 	myhtml_tree_node_insert_before(self, child);
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
@@ -791,27 +999,60 @@ after(HTML5::DOM::Node self, HTML5::DOM::Node child)
 CODE:
 	if (!myhtml_node_parent(self))
 		sub_croak(cv, "can't insert before detached node");
+	
+	if (self->tree != child->tree)
+		child = html5_dom_recursive_clone_node(self->tree, child);
+	
 	myhtml_tree_node_insert_after(self, child);
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
 
-# Clone node
+# Append node child
 SV *
 append(HTML5::DOM::Node self, HTML5::DOM::Node child)
 CODE:
 	if (!node_is_element(self))
 		sub_croak(cv, "can't append children to non-element node");
+	
+	if (self->tree != child->tree)
+		child = html5_dom_recursive_clone_node(self->tree, child);
+	
 	myhtml_tree_node_add_child(self, child);
+	RETVAL = SvREFCNT_inc(ST(0));
+OUTPUT:
+	RETVAL
+
+# Prepend node child
+SV *
+prepend(HTML5::DOM::Node self, HTML5::DOM::Node child)
+CODE:
+	if (!node_is_element(self))
+		sub_croak(cv, "can't append children to non-element node");
+	
+	if (self->tree != child->tree)
+		child = html5_dom_recursive_clone_node(self->tree, child);
+	
+	myhtml_tree_node_t *first_node = myhtml_node_child(self);
+	if (first_node) {
+		myhtml_tree_node_insert_before(first_node, child);
+	} else {
+		myhtml_tree_node_add_child(self, child);
+	}
+	
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
 
 # Clone node
 SV *
-clone(HTML5::DOM::Node self)
+clone(HTML5::DOM::Node self, bool deep = false)
 CODE:
-	RETVAL = node_to_sv(myhtml_tree_node_clone(self));
+	if (deep) {
+		RETVAL = node_to_sv(html5_dom_recursive_clone_node(self->tree, self));
+	} else {
+		RETVAL = node_to_sv(html5_dom_copy_foreign_node(self->tree, self));
+	}
 OUTPUT:
 	RETVAL
 
@@ -833,8 +1074,23 @@ CODE:
 		html5_dom_tree_t *tree = (html5_dom_tree_t *) self->tree->context;
 		myhtml_node_set_data(self, NULL);
 		// detached node, can be deleted
-		if (!myhtml_node_parent(self) && self != myhtml_tree_get_document(self->tree))
-			myhtml_tree_node_delete_recursive(self);
+		if (!myhtml_node_parent(self) && self != myhtml_tree_get_document(self->tree)) {
+			if (self == self->tree->node_html) {
+				self->tree->node_html = NULL;
+			} else if (self == self->tree->node_body) {
+				self->tree->node_body = NULL;
+			} else if (self == self->tree->node_head) {
+				self->tree->node_head = NULL;
+			} else if (self == self->tree->node_form) {
+				self->tree->node_form = NULL;
+			} else if (self == self->tree->fragment) {
+				self->tree->fragment = NULL;
+			} else if (self == self->tree->document) {
+				self->tree->document = NULL;
+			}
+			DOM_GC_TRACE("=> DOM::Node::FREE");
+			html5_tree_node_delete_recursive(self);
+		}
 		SvREFCNT_dec(tree->sv);
 	}
 
