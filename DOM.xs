@@ -85,6 +85,29 @@ static const char *modest_strerror(mystatus_t status) {
 	return status ? "UNKNOWN" : "";
 }
 
+static void html5_dom_wait_for_tree_done(myhtml_tree_t *tree) {
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		myhtml_t *myhtml = myhtml_tree_get_myhtml(tree);
+		if (myhtml->thread_stream) {
+			mythread_queue_list_t* queue_list = myhtml->thread_stream->context;
+			if (queue_list)
+				mythread_queue_list_wait_for_done(myhtml->thread_stream, queue_list);
+		}
+	#endif
+}
+
+static void html5_dom_wait_for_done(myhtml_tree_node_t *node, bool deep) {
+	if (node->token)
+		myhtml_token_node_wait_for_done(node->tree->token, node->token);
+	if (deep) {
+		myhtml_tree_node_t *child = myhtml_node_child(node);
+		while (child) {
+			html5_dom_wait_for_done(child, deep);
+			child = myhtml_node_next(child);
+		}
+	}
+}
+
 static void html5_dom_parser_free(html5_dom_parser_t *self) {
 	if (self->myhtml) {
 		myhtml_destroy(self->myhtml);
@@ -696,6 +719,8 @@ CODE:
 		sub_croak(cv, "myhtml_parse_chunk failed:%d (%s)", status, modest_strerror(status));
 	}
 	
+	html5_dom_wait_for_tree_done(self->tree);
+	
 	RETVAL = create_tree_object(self->tree, SvRV(ST(0)), self);
 	self->tree = NULL;
 OUTPUT:
@@ -722,6 +747,8 @@ CODE:
 		myhtml_tree_destroy(tree);
 		sub_croak(cv, "myhtml_parse failed: %d (%s)", status, modest_strerror(status));
 	}
+	
+	html5_dom_wait_for_tree_done(tree);
 	
 	RETVAL = create_tree_object(tree, SvRV(ST(0)), self);
 OUTPUT:
@@ -862,6 +889,15 @@ CODE:
 	if (!scope)
 		scope = myhtml_tree_get_node_html(self->tree);
 	RETVAL = html5_node_find(cv, self->parser, scope, query, combinator, ix == 1 || ix == 2);
+OUTPUT:
+	RETVAL
+
+# Wait for parsing done (when async mode)
+SV *
+wait(HTML5::DOM::Tree self)
+CODE:
+	html5_dom_wait_for_tree_done(self->tree);
+	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
 
@@ -1165,6 +1201,15 @@ CODE:
 			html5_dom_recursive_node_text(self, RETVAL);
 		}
 	}
+OUTPUT:
+	RETVAL
+
+# Wait for node parsing done (when async mode)
+SV *
+wait(HTML5::DOM::Node self, bool deep = false)
+CODE:
+	html5_dom_wait_for_done(self, deep);
+	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
 
