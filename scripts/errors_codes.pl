@@ -84,7 +84,7 @@ sub getConstants {
 		}
 		
 		my $txt = join("\n", @tmp);
-		$lib =~ s/(<$macro>)(.*?)#(\s*<\/$macro>)/$1\n$txt\n$3/gims;
+		$lib =~ s/(<$macro>)(.*?)(#\s*<\/$macro>)/$1\nuse constant \{\n$txt\n\};\n$3/gims;
 		
 		write_file($cfg->{lib}, $lib);
 		

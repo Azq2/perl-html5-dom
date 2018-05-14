@@ -18,13 +18,12 @@ my $sources = [
 
 WriteMakefile(
     AUTHOR			=> 'Kirill Zhumarin <kirill.zhumarin@gmail.com>',
-    ABSTRACT		=> '',
+    ABSTRACT		=> 'Super fast html5 DOM library with css selectors (based on Modest/MyHTML)',
     VERSION_FROM	=> 'lib/HTML5/DOM.pm',
     NAME			=> 'HTML5::DOM',
     LICENSE			=> 'WTFPL',
     LINKTYPE		=> 'dynamic',
-    LIBS			=> ["-lpthread", "-lm", "-lstdc++"],
-	CCFLAGS			=> " --std=c99 ". $Config{ccflags},
+    LIBS			=> ["-lpthread", "-lm"],
 	INC				=> "-I$source_dir",
 	OBJECT			=> join(" ", @$sources), 
 	test			=> {TESTS => 't/*.t t/*/*.t'}
