@@ -24,6 +24,7 @@ WriteMakefile(
     LICENSE			=> 'WTFPL',
     LINKTYPE		=> 'dynamic',
     LIBS			=> ["-lpthread", "-lm"],
+	CCFLAGS			=> " -std=c99 ". $Config{ccflags},
 	INC				=> "-I$source_dir",
 	OBJECT			=> join(" ", @$sources), 
 	test			=> {TESTS => 't/*.t t/*/*.t'}
