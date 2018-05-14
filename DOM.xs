@@ -2,6 +2,10 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#define NEED_newRV_noinc
+#define NEED_sv_2pv_flags
+#include "ppport.h"
+
 #include <modest/finder/finder.h>
 #include <myhtml/myhtml.h>
 #include <myhtml/serialization.h>
@@ -9,9 +13,13 @@
 #include <mycss/selectors/init.h>
 #include <mycss/selectors/serialization.h>
 
-// sv_derived_from_pvn faster than sv_derived_from
-#undef sv_derived_from
-#define sv_derived_from(sv, name) sv_derived_from_pvn(sv, name, sizeof(name) - 1, 0)
+// HACK: sv_derived_from_pvn faster than sv_derived_from
+#if PERL_BCDVERSION > 0x5015004
+	#undef sv_derived_from
+	#define sv_derived_from(sv, name) sv_derived_from_pvn(sv, name, sizeof(name) - 1, 0)
+#else
+	#define sv_derived_from_pvn(sv, name, len) sv_derived_from(sv, name)
+#endif
 
 #define node_is_element(node) (node->tag_id != MyHTML_TAG__UNDEF && node->tag_id != MyHTML_TAG__TEXT && node->tag_id != MyHTML_TAG__COMMENT && node->tag_id != MyHTML_TAG__DOCTYPE)
 
@@ -240,8 +248,8 @@ static SV *node_to_sv(myhtml_tree_node_t *node) {
 	
 	SV *sv = (SV *) myhtml_node_get_data(node);
 	if (!sv) {
-		SV *sv_ref = pack_pointer(get_node_class(node), (void *) node);
-		sv = SvRV(sv_ref);
+		SV *node_ref = pack_pointer(get_node_class(node), (void *) node);
+		sv = SvRV(node_ref);
 		myhtml_node_set_data(node, (void *) sv);
 		
 		DOM_GC_TRACE("DOM::Node::NEW (new refcnt=%d)", SvREFCNT(sv));
@@ -249,11 +257,11 @@ static SV *node_to_sv(myhtml_tree_node_t *node) {
 		html5_dom_tree_t *tree = (html5_dom_tree_t *) node->tree->context;
 		SvREFCNT_inc(tree->sv);
 		
-		return sv_ref;
+		return node_ref;
 	} else {
-		SV *sv_ref = newRV(sv);
+		SV *node_ref = newRV(sv);
 		DOM_GC_TRACE("DOM::Node::NEW (reuse refcnt=%d)", SvREFCNT(sv));
-		return sv_ref;
+		return node_ref;
 	}
 }
 
@@ -1756,3 +1764,71 @@ CODE:
 	DOM_GC_TRACE("DOM::CSS::Selector::Entry::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	SvREFCNT_dec(self->parent);
 	safefree(self);
+
+#################################################################
+# HTML5::DOM::Encoding
+#################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Encoding
+
+SV *
+id2name(int id)
+CODE:
+	size_t len = 0;
+	const char *name = myencoding_name_by_id(id, &len);
+	RETVAL = name ? newSVpv(name, len) : &PL_sv_undef;
+OUTPUT:
+	RETVAL
+
+SV *
+name2id(SV *text)
+CODE:
+	text = sv_stringify(text);
+	
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	
+	myencoding_t encoding = MyENCODING_NOT_DETERMINED;
+	myencoding_by_name(text_str, text_len, &encoding);
+	RETVAL =  encoding != MyENCODING_NOT_DETERMINED ? newSViv(encoding) : &PL_sv_undef;
+OUTPUT:
+	RETVAL
+
+int
+detect(SV *text, size_t max_len = 0)
+ALIAS:
+	detectByPrescanStream	= 1
+	detectRussian			= 2
+	detectUnicode			= 3
+	detectBom				= 4
+CODE:
+	text = sv_stringify(text);
+	
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	
+	if (max_len && max_len < text_len)
+		text_len = max_len;
+	
+	myencoding_t encoding;
+	
+	switch (ix) {
+		case 0:
+			myencoding_detect(text_str, text_len, &encoding);
+		break;
+		case 1:
+			encoding = myencoding_prescan_stream_to_determine_encoding(text_str, text_len);
+		break;
+		case 2:
+			encoding = myencoding_detect_russian(text_str, text_len, &encoding);
+		break;
+		case 3:
+			encoding = myencoding_detect_unicode(text_str, text_len, &encoding);
+		break;
+		case 4:
+			encoding = myencoding_detect_bom(text_str, text_len, &encoding);
+		break;
+	}
+	
+	RETVAL = encoding;
+OUTPUT:
+	RETVAL
