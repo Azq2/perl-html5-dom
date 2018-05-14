@@ -32,7 +32,7 @@
 		const char *__gvname = GvNAME(__gv); \
 		const HV *__stash = GvSTASH(__gv); \
 		const char *__hvname = __stash ? HvNAME(__stash) : NULL; \
-		Perl_croak_nocontext("%s%s%s(): " msg, __hvname ? __hvname : __gvname, __hvname ? "::" : "", __hvname ? __gvname : "", ##__VA_ARGS__); \
+		croak("%s%s%s(): " msg, __hvname ? __hvname : __gvname, __hvname ? "::" : "", __hvname ? __gvname : "", ##__VA_ARGS__); \
 	} \
 } while (0);
 
@@ -132,6 +132,7 @@ static void html5_dom_parser_free(html5_dom_parser_t *self) {
 
 static mystatus_t sv_serialization_callback(const char *data, size_t len, void *ctx) {
 	sv_catpvn((SV *) ctx, data, len);
+	return MyCORE_STATUS_OK;
 }
 
 static inline SV *pack_pointer(const char *clazz, void *ptr) {
