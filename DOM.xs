@@ -78,6 +78,11 @@ typedef html5_css_parser_t *			HTML5__DOM__CSS;
 typedef html5_css_selector_t *			HTML5__DOM__CSS__Selector;
 typedef html5_css_selector_entry_t *	HTML5__DOM__CSS__Selector__Entry;
 
+static inline bool html5_dom_is_fragment(myhtml_tree_node_t *node) {
+	html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
+	return context->fragment_tag_id && node->tag_id == context->fragment_tag_id;
+}
+
 static const char *modest_strerror(mystatus_t status) {
 	switch (status) {
 		#include "modest_errors.c"	
@@ -97,15 +102,35 @@ static void html5_dom_wait_for_tree_done(myhtml_tree_t *tree) {
 }
 
 static void html5_dom_wait_for_done(myhtml_tree_node_t *node, bool deep) {
-	if (node->token)
-		myhtml_token_node_wait_for_done(node->tree->token, node->token);
-	if (deep) {
-		myhtml_tree_node_t *child = myhtml_node_child(node);
-		while (child) {
-			html5_dom_wait_for_done(child, deep);
-			child = myhtml_node_next(child);
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		if (node->token)
+			myhtml_token_node_wait_for_done(node->tree->token, node->token);
+		if (deep) {
+			myhtml_tree_node_t *child = myhtml_node_child(node);
+			while (child) {
+				html5_dom_wait_for_done(child, deep);
+				child = myhtml_node_next(child);
+			}
 		}
-	}
+	#endif
+}
+
+static bool html5_dom_is_done(myhtml_tree_node_t *node, bool deep) {
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		if (node->token) {
+			if ((node->token->type & MyHTML_TOKEN_TYPE_DONE) == 0)
+				return false;
+		}
+		if (deep) {
+			myhtml_tree_node_t *child = myhtml_node_child(node);
+			while (child) {
+				if (!html5_dom_is_done(child, deep))
+					return false;
+				child = myhtml_node_next(child);
+			}
+		}
+	#endif
+	return true;
 }
 
 static void html5_dom_parser_free(html5_dom_parser_t *self) {
@@ -902,6 +927,22 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# True if parsing done (when async mode)
+bool
+parsed(HTML5::DOM::Tree self)
+CODE:
+	RETVAL = true;
+	
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		myhtml_t *myhtml = myhtml_tree_get_myhtml(self->tree);
+		if (myhtml->thread_stream) {
+			mythread_queue_list_t* queue_list = myhtml->thread_stream->context;
+			RETVAL = mythread_queue_list_see_for_done(myhtml->thread_stream, queue_list);
+		}
+	#endif
+OUTPUT:
+	RETVAL
+
 # findTag(val), getElementsByTagName(val)									- get nodes by tag name
 # findClass(val), getElementsByClassName(val)								- get nodes by class name
 # findId(val), getElementById(val)											- get node by id
@@ -1140,7 +1181,7 @@ CODE:
 		RETVAL = SvREFCNT_inc(ST(0));
 	} else {
 		RETVAL = newSVpv("", 0);
-		if (self->tag_id == MyHTML_TAG__UNDEF || ix == 1) { // innerHTML
+		if (self->tag_id == MyHTML_TAG__UNDEF || ix == 1 || html5_dom_is_fragment(self)) { // innerHTML
 			myhtml_tree_node_t *node = myhtml_node_child(self);
 			while (node) {
 				myhtml_serialization_tree_callback(node, sv_serialization_callback, RETVAL);
@@ -1214,6 +1255,14 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# True if node parsing done (when async mode)
+bool
+parsed(HTML5::DOM::Node self, bool deep = false)
+CODE:
+	RETVAL = html5_dom_is_done(self, deep);
+OUTPUT:
+	RETVAL
+
 # Next element
 SV *
 next(HTML5::DOM::Node self)
@@ -1280,7 +1329,16 @@ CODE:
 		child = html5_dom_recursive_clone_node(self->tree, child);
 	}
 	
-	myhtml_tree_node_insert_before(self, child);
+	if (html5_dom_is_fragment(child)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+		while (fragment_child) {
+			myhtml_tree_node_insert_before(self, fragment_child);
+			fragment_child = myhtml_node_next(fragment_child);
+		}
+	} else {
+		myhtml_tree_node_insert_before(self, child);
+	}
+	
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
@@ -1297,7 +1355,16 @@ CODE:
 		child = html5_dom_recursive_clone_node(self->tree, child);
 	}
 	
-	myhtml_tree_node_insert_after(self, child);
+	if (html5_dom_is_fragment(child)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_last_child(child);
+		while (fragment_child) {
+			myhtml_tree_node_insert_after(self, fragment_child);
+			fragment_child = myhtml_node_prev(fragment_child);
+		}
+	} else {
+		myhtml_tree_node_insert_after(self, child);
+	}
+	
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
@@ -1314,7 +1381,16 @@ CODE:
 		child = html5_dom_recursive_clone_node(self->tree, child);
 	}
 	
-	myhtml_tree_node_add_child(self, child);
+	if (html5_dom_is_fragment(child)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+		while (fragment_child) {
+			myhtml_tree_node_add_child(self, fragment_child);
+			fragment_child = myhtml_node_next(fragment_child);
+		}
+	} else {
+		myhtml_tree_node_add_child(self, child);
+	}
+	
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
@@ -1324,7 +1400,7 @@ SV *
 prepend(HTML5::DOM::Node self, HTML5::DOM::Node child)
 CODE:
 	if (!node_is_element(self))
-		sub_croak(cv, "can't append children to non-element node");
+		sub_croak(cv, "can't prepend children to non-element node");
 	
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
@@ -1332,10 +1408,23 @@ CODE:
 	}
 	
 	myhtml_tree_node_t *first_node = myhtml_node_child(self);
-	if (first_node) {
-		myhtml_tree_node_insert_before(first_node, child);
+	if (html5_dom_is_fragment(child)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+		while (fragment_child) {
+			myhtml_tree_node_add_child(self, fragment_child);
+			if (first_node) {
+				myhtml_tree_node_insert_before(first_node, fragment_child);
+			} else {
+				myhtml_tree_node_add_child(self, fragment_child);
+			}
+			fragment_child = myhtml_node_next(fragment_child);
+		}
 	} else {
-		myhtml_tree_node_add_child(self, child);
+		if (first_node) {
+			myhtml_tree_node_insert_before(first_node, child);
+		} else {
+			myhtml_tree_node_add_child(self, child);
+		}
 	}
 	
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -1346,15 +1435,24 @@ OUTPUT:
 SV *
 replace(HTML5::DOM::Node self, HTML5::DOM::Node child)
 CODE:
-	if (!node_is_element(self))
-		sub_croak(cv, "can't append children to non-element node");
-	
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
 		child = html5_dom_recursive_clone_node(self->tree, child);
 	}
 	
-	myhtml_tree_node_insert_before(self, child);
+	if (html5_dom_is_fragment(child)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+		while (fragment_child) {
+			myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+			while (fragment_child) {
+				myhtml_tree_node_insert_before(self, fragment_child);
+				fragment_child = myhtml_node_next(fragment_child);
+			}
+		}
+	} else {
+		myhtml_tree_node_insert_before(self, child);
+	}
+	
 	myhtml_tree_node_remove(self);
 	
 	RETVAL = SvREFCNT_inc(ST(0));
