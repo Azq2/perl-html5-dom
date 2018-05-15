@@ -13,6 +13,9 @@
 #include <mycss/selectors/init.h>
 #include <mycss/selectors/serialization.h>
 
+//#define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
+#define DOM_GC_TRACE(...)
+
 // HACK: sv_derived_from_pvn faster than sv_derived_from
 #if PERL_BCDVERSION > 0x5015004
 	#undef sv_derived_from
@@ -22,9 +25,8 @@
 #endif
 
 #define node_is_element(node) (node->tag_id != MyHTML_TAG__UNDEF && node->tag_id != MyHTML_TAG__TEXT && node->tag_id != MyHTML_TAG__COMMENT && node->tag_id != MyHTML_TAG__DOCTYPE)
-
-//#define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
-#define DOM_GC_TRACE(...)
+#define node_is_document(node) (!node->parent && node == node->tree->document)
+#define node_is_root(node) (node->tree->node_html && node->tree->node_html == node)
 
 #define sub_croak(cv, msg, ...) do { \
 	const GV *const __gv = CvGV(cv); \
@@ -69,6 +71,13 @@ typedef struct {
 	mycss_selectors_entries_list_t *list;
 	SV *parent;
 } html5_css_selector_entry_t;
+
+typedef struct {
+	myhtml_tree_node_t *node_html;
+	myhtml_tree_node_t *node_body;
+	myhtml_tree_node_t *node_head;
+	myhtml_tree_node_t *document;
+} html5_fragment_parts_t;
 
 typedef html5_dom_parser_t *			HTML5__DOM;
 typedef myhtml_collection_t *			HTML5__DOM__Collection;
@@ -188,6 +197,7 @@ static SV *create_tree_object(myhtml_tree_t *tree, SV *parent, html5_dom_parser_
 	tree_obj->tree = tree;
 	tree_obj->parent = parent;
 	tree_obj->parser = parser;
+	tree_obj->fragment_tag_id = MyHTML_TAG__UNDEF;
 	
 	SvREFCNT_inc(parent);
 	
@@ -201,6 +211,7 @@ static SV *create_tree_object(myhtml_tree_t *tree, SV *parent, html5_dom_parser_
 
 static inline const char *get_node_class(myhtml_tree_node_t *node) {
 	html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
+	
 	if (node->tag_id != MyHTML_TAG__UNDEF) {
 		if (node->tag_id == MyHTML_TAG__TEXT) {
 			return "HTML5::DOM::Text";
@@ -215,7 +226,7 @@ static inline const char *get_node_class(myhtml_tree_node_t *node) {
 	}
 	
 	// Modest myhtml bug - document node has tag_id == MyHTML_TAG__UNDEF
-	if (!node->parent && node == myhtml_tree_get_document(node->tree))
+	if (node_is_document(node))
 		return "HTML5::DOM::Document";
 	
 	return "HTML5::DOM::Node";
@@ -289,6 +300,16 @@ static myhtml_tree_node_t *html5_dom_copy_foreign_node(myhtml_tree_t *tree, myht
 	}
     
     return new_node;
+}
+
+static SV *tree_to_sv(myhtml_tree_t *tree) {
+	html5_dom_tree_t *context = (html5_dom_tree_t *) tree->context;
+	return newRV(context->sv);
+}
+
+static SV *myhtml_to_sv(myhtml_tree_t *tree) {
+	html5_dom_tree_t *context = (html5_dom_tree_t *) tree->context;
+	return newRV(context->parent);
 }
 
 static SV *node_to_sv(myhtml_tree_node_t *node) {
@@ -609,13 +630,26 @@ static SV *html5_node_simple_find(CV *cv, myhtml_tree_node_t *self, SV *key, SV 
 	return result;
 }
 
-static myhtml_tree_node_t *html5_dom_recursive_clone_node(myhtml_tree_t *tree, myhtml_tree_node_t *node) {
+static myhtml_tree_node_t *html5_dom_recursive_clone_node(myhtml_tree_t *tree, myhtml_tree_node_t *node, html5_fragment_parts_t *parts) {
 	myhtml_tree_node_t *new_node = html5_dom_copy_foreign_node(tree, node);
 	myhtml_tree_node_t *child = myhtml_node_child(node);
+	
+	if (parts) {
+		if (node == node->tree->node_html)
+			parts->node_html = new_node;
+		else if (node == node->tree->node_head)
+			parts->node_head = new_node;
+		else if (node == node->tree->node_body)
+			parts->node_body = new_node;
+		else if (node == node->tree->document)
+			parts->document = new_node;
+	}
+	
 	while (child) {
-		myhtml_tree_node_add_child(new_node, html5_dom_recursive_clone_node(tree, child));
+		myhtml_tree_node_add_child(new_node, html5_dom_recursive_clone_node(tree, child, parts));
 		child = myhtml_node_next(child);
 	}
+	
 	return new_node;
 }
 
@@ -636,7 +670,7 @@ static void html5_tree_node_delete_recursive(myhtml_tree_node_t *node) {
 }
 
 static myhtml_tree_node_t *html5_dom_parse_fragment(myhtml_tree_t *tree, myhtml_tag_id_t tag_id, myhtml_namespace_t ns, 
-	const char *text, size_t length, mystatus_t *status_out)
+	const char *text, size_t length, html5_fragment_parts_t *parts, mystatus_t *status_out)
 {
 	mystatus_t status;
 	
@@ -660,15 +694,16 @@ static myhtml_tree_node_t *html5_dom_parse_fragment(myhtml_tree_t *tree, myhtml_
 	}
 	
 	// clone fragment from temporary tree to persistent tree
-	myhtml_tree_node_t *node = html5_dom_recursive_clone_node(tree, myhtml_tree_get_node_html(fragment_tree));
+	myhtml_tree_node_t *node = html5_dom_recursive_clone_node(tree, myhtml_tree_get_node_html(fragment_tree), parts);
 	
 	if (node) {
 		html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
 		if (!context->fragment_tag_id)
 			context->fragment_tag_id = html5_dom_tag_id_by_name(tree, "-fragment", 9, true);
 		node->tag_id = context->fragment_tag_id;
-		myhtml_tree_destroy(fragment_tree);
 	}
+	
+	myhtml_tree_destroy(fragment_tree);
 	
 	*status_out = status;
 	
@@ -864,7 +899,7 @@ CODE:
 		STRLEN ns_len;
 		const char *ns_str = SvPV_const(ns, ns_len);
 		
-		if (myhtml_namespace_id_by_name(ns_str, ns_len, &ns_id))
+		if (!myhtml_namespace_id_by_name(ns_str, ns_len, &ns_id))
 			sub_croak(cv, "unknown namespace: %s", ns_str);
 	}
 	
@@ -875,7 +910,7 @@ CODE:
 		tag_id = html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, true);
 	}
 	
-	myhtml_tree_node_t *node = html5_dom_parse_fragment(self->tree, tag_id, ns_id, text_str, text_len, &status);
+	myhtml_tree_node_t *node = html5_dom_parse_fragment(self->tree, tag_id, ns_id, text_str, text_len, NULL, &status);
 	if (status)
 		sub_croak(cv, "myhtml_parse_fragment failed: %d (%s)", status, modest_strerror(status));
 	
@@ -928,7 +963,7 @@ OUTPUT:
 	RETVAL
 
 # True if parsing done (when async mode)
-bool
+int
 parsed(HTML5::DOM::Tree self)
 CODE:
 	RETVAL = true;
@@ -1008,6 +1043,14 @@ CODE:
 	size_t ns_len = 0;
 	const char *ns_name = myhtml_namespace_name_by_id(ns_id, &ns_len);
 	RETVAL = ns_name ? newSVpv(ns_name, ns_len) : &PL_sv_undef;
+OUTPUT:
+	RETVAL
+
+# Return tree parent parser
+SV *
+parser(HTML5::DOM::Tree self)
+CODE:
+	RETVAL = myhtml_to_sv(self->tree);
 OUTPUT:
 	RETVAL
 
@@ -1120,6 +1163,14 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Return node parent tree
+SV *
+tree(HTML5::DOM::Node self)
+CODE:
+	RETVAL = tree_to_sv(self->tree);
+OUTPUT:
+	RETVAL
+
 # Non-recursive html serialization (example: <div id="some_id">)
 SV *
 nodeHtml(HTML5::DOM::Node self, SV *text = NULL)
@@ -1146,10 +1197,17 @@ CODE:
 		STRLEN text_len;
 		const char *text_str = SvPV_const(text, text_len);
 		
-		if (node_is_element(self)) { // parse fragment and replace all node childrens with it
+		if (node_is_element(self) || node_is_document(self)) { // parse fragment and replace all node childrens with it
 			// parse fragment
 			mystatus_t status;
-			myhtml_tree_node_t *fragment = html5_dom_parse_fragment(self->tree, self->tag_id, myhtml_node_namespace(self), text_str, text_len, &status);
+			html5_fragment_parts_t parts = {0};
+			myhtml_tag_id_t context_tag_id = self->tag_id;
+			
+			// hack for document node
+			if (node_is_document(self))
+				context_tag_id = MyHTML_TAG_HTML;
+			
+			myhtml_tree_node_t *fragment = html5_dom_parse_fragment(self->tree, context_tag_id, myhtml_node_namespace(self), text_str, text_len, &parts, &status);
 			if (status)
 				sub_croak(cv, "myhtml_parse_fragment failed: %d (%s)", status, modest_strerror(status));
 			
@@ -1162,20 +1220,35 @@ CODE:
 				node = next;
 			}
 			
-			myhtml_tree_node_add_child(self, fragment);
-			
-			// add fragment
-			node = myhtml_node_child(fragment);
-			while (node) {
-				myhtml_tree_node_t *next = myhtml_node_next(node);
-				myhtml_tree_node_remove(node);
-				myhtml_tree_node_add_child(self, node);
-				node = next;
+			// cleanup references in tree
+			if (node_is_root(self)) {
+				self->tree->node_body = parts.node_body;
+				self->tree->node_head = parts.node_head;
+			} else if (node_is_document(self)) {
+				self->tree->node_html = parts.node_html;
+				self->tree->node_body = parts.node_body;
+				self->tree->node_head = parts.node_head;
 			}
 			
-			// free fragment
-			html5_tree_node_delete_recursive(fragment);
-		} else { // same as nodeValue, why not?
+			if (fragment != self->tree->node_html) {
+				// add fragment
+				node = myhtml_node_child(fragment);
+				while (node) {
+					myhtml_tree_node_t *next = myhtml_node_next(node);
+					myhtml_tree_node_remove(node);
+					myhtml_tree_node_add_child(self, node);
+					node = next;
+				}
+				
+				// free fragment
+				if (fragment != self->tree->node_html)
+					html5_tree_node_delete_recursive(fragment);
+			} else {
+				// fragment now is html node, why not?
+				fragment->tag_id = MyHTML_TAG_HTML;
+				myhtml_tree_node_add_child(self, fragment);
+			}
+		} else { // same as nodeValue, for user friendly API
 			myhtml_node_text_set(self, text_str, text_len, self->tree->encoding);
 		}
 		RETVAL = SvREFCNT_inc(ST(0));
@@ -1226,6 +1299,7 @@ CODE:
 			STRLEN text_len;
 			const char *text_str = SvPV_const(text, text_len);
 			
+			// remove all children nodes
 			myhtml_tree_node_t *node = myhtml_node_child(self);
 			while (node) {
 				myhtml_tree_node_t *next = myhtml_node_next(node);
@@ -1234,6 +1308,17 @@ CODE:
 				node = next;
 			}
 			
+			// cleanup references in tree
+			if (node_is_root(self)) {
+				self->tree->node_body = NULL;
+				self->tree->node_head = NULL;
+			} else if (node_is_document(self)) {
+				self->tree->node_html = NULL;
+				self->tree->node_body = NULL;
+				self->tree->node_head = NULL;
+			}
+			
+			// add text node
 			myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
 			myhtml_node_text_set(text_node, text_str, text_len, self->tree->encoding);
 			myhtml_tree_node_add_child(self, text_node);
@@ -1256,7 +1341,7 @@ OUTPUT:
 	RETVAL
 
 # True if node parsing done (when async mode)
-bool
+int
 parsed(HTML5::DOM::Node self, bool deep = false)
 CODE:
 	RETVAL = html5_dom_is_done(self, deep);
@@ -1326,7 +1411,9 @@ CODE:
 	
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child);
+		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
+		if (!child)
+			sub_croak(cv, "node copying internal error");
 	}
 	
 	if (html5_dom_is_fragment(child)) {
@@ -1352,7 +1439,9 @@ CODE:
 	
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child);
+		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
+		if (!child)
+			sub_croak(cv, "node copying internal error");
 	}
 	
 	if (html5_dom_is_fragment(child)) {
@@ -1378,7 +1467,9 @@ CODE:
 	
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child);
+		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
+		if (!child)
+			sub_croak(cv, "node copying internal error");
 	}
 	
 	if (html5_dom_is_fragment(child)) {
@@ -1404,7 +1495,9 @@ CODE:
 	
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child);
+		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
+		if (!child)
+			sub_croak(cv, "node copying internal error");
 	}
 	
 	myhtml_tree_node_t *first_node = myhtml_node_child(self);
@@ -1437,7 +1530,9 @@ replace(HTML5::DOM::Node self, HTML5::DOM::Node child)
 CODE:
 	if (self->tree != child->tree) {
 		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child);
+		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
+		if (!child)
+			sub_croak(cv, "node copying internal error");
 	}
 	
 	if (html5_dom_is_fragment(child)) {
@@ -1465,7 +1560,7 @@ clone(HTML5::DOM::Node self, bool deep = false, HTML5::DOM::Tree new_tree = NULL
 CODE:
 	myhtml_tree_t *tree = new_tree ? new_tree->tree : self->tree;
 	if (deep) {
-		RETVAL = node_to_sv(html5_dom_recursive_clone_node(tree, self));
+		RETVAL = node_to_sv(html5_dom_recursive_clone_node(tree, self, NULL));
 	} else {
 		RETVAL = node_to_sv(html5_dom_copy_foreign_node(tree, self));
 	}
