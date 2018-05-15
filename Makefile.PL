@@ -21,7 +21,7 @@ WriteMakefile(
     ABSTRACT		=> 'Super fast html5 DOM library with css selectors (based on Modest/MyHTML)',
     VERSION_FROM	=> 'lib/HTML5/DOM.pm',
     NAME			=> 'HTML5::DOM',
-    LICENSE			=> 'WTFPL',
+    LICENSE			=> 'MIT',
     LINKTYPE		=> 'dynamic',
     LIBS			=> ["-lpthread", "-lm"],
 	CCFLAGS			=> " -std=c99 ". $Config{ccflags},
