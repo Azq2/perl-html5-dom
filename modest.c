@@ -1,3 +1,5 @@
+#define _BSD_SOURCE 1
+
 #if (defined(_WIN32) || defined(_WIN64))
 	#define MyCORE_OS_WINDOWS_NT
 #endif
