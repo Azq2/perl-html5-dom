@@ -13,6 +13,8 @@
 #include <mycss/selectors/init.h>
 #include <mycss/selectors/serialization.h>
 
+#define MyENCODING_AUTO 1
+
 //#define DOM_GC_TRACE(msg, ...) fprintf(stderr, "[GC] " msg "\n", ##__VA_ARGS__);
 #define DOM_GC_TRACE(...)
 
@@ -39,11 +41,26 @@
 } while (0);
 
 typedef struct {
+	long threads;
+	bool async;
+	bool ignore_whitespace;
+	bool ignore_doctype;
+	bool scripts;
+	myencoding_t encoding;
+	myencoding_t default_encoding;
+	bool encoding_use_meta;
+	bool encoding_use_bom;
+} html5_dom_options_t;
+
+typedef struct {
 	myhtml_t *myhtml;
 	myhtml_tree_t *tree;
 	mycss_t *mycss;
 	mycss_entry_t *mycss_entry;
 	modest_finder_t *finder;
+	html5_dom_options_t opts; // base options
+	html5_dom_options_t chunk_opts; // for parseChunk
+	size_t chunks;
 } html5_dom_parser_t;
 
 typedef struct {
@@ -283,7 +300,7 @@ static myhtml_tree_node_t *html5_dom_copy_foreign_node(myhtml_tree_t *tree, myht
 		new_node->token->element_length	= tree != node->tree ? 0 : node->token->element_length;
 		new_node->token->type			= new_node->token->type | MyHTML_TOKEN_TYPE_DONE;
 		
-		// Copy text data (TODO: encoding)
+		// Copy text data
 		if (node->token->str.length) {
 			mycore_string_init(tree->mchar, tree->mchar_node_id, &new_node->token->str, node->token->str.length + 1);
 			mycore_string_append(&new_node->token->str, node->token->str.data, node->token->str.length);
@@ -669,6 +686,26 @@ static void html5_tree_node_delete_recursive(myhtml_tree_node_t *node) {
 	}
 }
 
+void html5_dom_replace_attr_value(myhtml_tree_node_t *node, const char *key, size_t key_len, const char *val, size_t val_len, myencoding_t encoding) {
+	myhtml_tree_attr_t *attr = myhtml_attribute_by_key(node, key, key_len);
+	if (attr) { // edit
+		// destroy original value
+		mycore_string_destroy(&attr->value, 0);
+		
+		// set new value
+		mycore_string_init(node->tree->mchar, node->tree->mchar_node_id, &attr->value, (val_len + 1));
+        
+        // apply encoding
+		if (encoding == MyENCODING_UTF_8) {
+			mycore_string_append(&attr->value, val, val_len);
+		} else {
+			myencoding_string_append(&attr->value, val, val_len, encoding);
+		}
+	} else { // add new
+		myhtml_attribute_add(node, key, key_len, val, val_len, encoding);
+	}
+}
+
 static myhtml_tree_node_t *html5_dom_parse_fragment(myhtml_tree_t *tree, myhtml_tag_id_t tag_id, myhtml_namespace_t ns, 
 	const char *text, size_t length, html5_fragment_parts_t *parts, mystatus_t *status_out)
 {
@@ -710,23 +747,158 @@ static myhtml_tree_node_t *html5_dom_parse_fragment(myhtml_tree_t *tree, myhtml_
 	return node;
 }
 
+long hv_get_int_value(HV *hv, const char *key, int length, long def) {
+	if (hv) {
+		SV **sv = hv_fetch(hv, key, length, 0);
+		if (sv && *sv)
+			return SvIV(*sv);
+	}
+	return def;
+}
+
+myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencoding_t def) {
+	if (hv) {
+		SV **sv = hv_fetch(hv, key, length, 0);
+		if (sv && *sv) {
+			SV *encoding = sv_stringify(*sv);
+			
+			STRLEN enc_length;
+			const char *enc_str = SvPV_const(encoding, enc_length);
+			
+			if (enc_length > 0) {
+				myencoding_t enc_id;
+				if (isdigit(enc_str[0])) { // May be encoding id
+					enc_id = SvIV(encoding);
+					if (enc_id == MyENCODING_AUTO || enc_id == MyENCODING_DEFAULT || enc_id == MyENCODING_NOT_DETERMINED)
+						return enc_id;
+					if (!myencoding_name_by_id(enc_id, NULL))
+						return MyENCODING_NOT_DETERMINED;
+				} else { // May be encoding name
+					if (!myencoding_by_name(key, length, &enc_id)) {
+						if (length == 4 && strcasecmp(key, "auto") == 0)
+							return MyENCODING_AUTO;
+						if (length == 7 && strcasecmp(key, "default") == 0)
+							return MyENCODING_DEFAULT;
+						return MyENCODING_NOT_DETERMINED;
+					}
+				}
+				return enc_id;
+			}
+		}
+	}
+	return def;
+}
+
+/*
+ * threads		= 0		disabled
+ * hreads		= 1		all in one
+ * threads		= 2		two threads
+ * 
+ * async		= 0		wait for parsing done
+ * async		= 1		async parsing, use Tree::wait()/Node::wait() or non-blocking Tree::parsed()/Node::parsed()
+ * 
+ * encoding		= ?
+ * 
+ * script		= 0		process noscript childrens as nodes
+ * script		= 1		process noscript childrens as text
+ * 
+ * ignore_whitespace		= 0
+ * ignore_whitespace		= 1
+ * 
+ * ignore_doctype			= 0
+ * ignore_doctype			= 1
+ * */
+void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
+	opts->threads				= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
+	opts->async					= hv_get_int_value(options, "async", 5, extend ? extend->async : 0) > 0;
+	opts->ignore_whitespace		= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
+	opts->ignore_doctype		= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
+	opts->scripts				= hv_get_int_value(options, "scripts", 7, extend ? extend->scripts : 0) > 0;
+	opts->encoding				= hv_get_encoding_value(options, "encoding", 8, extend ? extend->encoding : MyENCODING_AUTO);
+	opts->default_encoding		= hv_get_encoding_value(options, "default_encoding", 16, extend ? extend->default_encoding : MyENCODING_DEFAULT);
+	opts->encoding_use_meta		= hv_get_int_value(options, "encoding_use_meta", 17, extend ? extend->encoding_use_meta : 1) > 0;
+	opts->encoding_use_bom		= hv_get_int_value(options, "encoding_use_bom", 16, extend ? extend->encoding_use_bom : 1) > 0;
+}
+
+void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
+	if (opts->encoding == MyENCODING_NOT_DETERMINED)
+		sub_croak(cv, "invalid encoding value");
+	if (opts->default_encoding == MyENCODING_NOT_DETERMINED || opts->default_encoding == MyENCODING_AUTO)
+		sub_croak(cv, "invalid default_encoding value");
+}
+
+myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **html_str, size_t *html_length) {
+	// Try to determine encoding
+	myencoding_t encoding;
+	if (opts->encoding == MyENCODING_AUTO) {
+		encoding = MyENCODING_NOT_DETERMINED;
+		if (*html_length) {
+			// Search encoding in meta-tags
+			if (opts->encoding_use_meta)
+				encoding = myencoding_prescan_stream_to_determine_encoding(*html_str, *html_length);
+			
+			if (encoding == MyENCODING_NOT_DETERMINED) {
+				// Check BOM
+				if (!opts->encoding_use_bom || !myencoding_detect_and_cut_bom(*html_str, *html_length, &encoding, html_str, html_length)) {
+					// Check heuristic
+					if (!myencoding_detect(*html_str, *html_length, &encoding)) {
+						// Can't determine encoding, use default
+						encoding = opts->default_encoding;
+					}
+				}
+			}
+		} else {
+			encoding = opts->default_encoding;
+		}
+	} else {
+		encoding = opts->encoding;
+	}
+	return encoding;
+}
+
+void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts) {
+	if (opts->scripts) {
+		tree->flags |= MyHTML_TREE_FLAGS_SCRIPT;
+	} else {
+		tree->flags &= ~MyHTML_TREE_FLAGS_SCRIPT;
+	}
+	
+	if (opts->ignore_doctype)
+		tree->parse_flags |= MyHTML_TREE_PARSE_FLAGS_WITHOUT_DOCTYPE_IN_TREE;
+	
+	if (opts->ignore_whitespace)
+		tree->parse_flags |= MyHTML_TREE_PARSE_FLAGS_SKIP_WHITESPACE_TOKEN;
+}
+
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
 
 #################################################################
 # HTML5::DOM (Parser)
 #################################################################
 HTML5::DOM
-new(...)
+new(SV *CLASS, HV *options = NULL)
 CODE:
 	DOM_GC_TRACE("DOM::new");
-	
 	mystatus_t status;
+	
+	html5_dom_options_t opts = {0};
+	html5_dom_parse_options(&opts, NULL, options);
+	html5_dom_check_options(cv, &opts);
 	
 	html5_dom_parser_t *self = (html5_dom_parser_t *) safemalloc(sizeof(html5_dom_parser_t));
 	memset(self, 0, sizeof(html5_dom_parser_t));
+	memcpy(&self->opts, &opts, sizeof(opts));
 	
 	self->myhtml = myhtml_create();
-	status = myhtml_init(self->myhtml, MyHTML_OPTIONS_DEFAULT, 1, 0);
+	
+	if (self->opts.threads <= 0) {
+		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_SINGLE, 1, 0);
+	} else if (self->opts.threads == 1) {
+		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_ALL_IN_ONE, 1, 0);
+	} else {
+		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_SEPARATELY, self->opts.threads, 0);
+	}
+	
 	if (status) {
 		html5_dom_parser_free(self);
 		sub_croak(cv, "myhtml_init failed: %d (%s)", status, modest_strerror(status));
@@ -736,9 +908,37 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Init html chunk parser
+SV *
+parseChunkStart(HTML5::DOM self, HV *options = NULL)
+CODE:
+	mystatus_t status;
+	
+	html5_dom_parse_options(&self->chunk_opts, &self->opts, options);
+	html5_dom_check_options(cv, &self->chunk_opts);
+	
+	if (self->tree) {
+		myhtml_tree_destroy(self->tree);
+		self->tree = NULL;
+	}
+	
+	self->tree = myhtml_tree_create();
+	status = myhtml_tree_init(self->tree, self->myhtml);
+	if (status) {
+		myhtml_tree_destroy(self->tree);
+		sub_croak(cv, "myhtml_tree_init failed: %d (%s)", status, modest_strerror(status));
+	}
+	
+	self->chunks = 0;
+	myhtml_encoding_set(self->tree, self->chunk_opts.encoding == MyENCODING_AUTO ? self->chunk_opts.default_encoding : self->chunk_opts.encoding);
+	
+	RETVAL = SvREFCNT_inc(ST(0));
+OUTPUT:
+	RETVAL
+
 # Parse html chunk
 SV *
-parseChunk(HTML5::DOM self, SV *html)
+parseChunk(HTML5::DOM self, SV *html, HV *options = NULL)
 CODE:
 	mystatus_t status;
 	
@@ -749,11 +949,21 @@ CODE:
 			myhtml_tree_destroy(self->tree);
 			sub_croak(cv, "myhtml_tree_init failed: %d (%s)", status, modest_strerror(status));
 		}
-		myhtml_encoding_set(self->tree, MyENCODING_UTF_8);
+		memcpy(&self->opts, &self->chunk_opts, sizeof(html5_dom_options_t));
+		myhtml_encoding_set(self->tree, self->chunk_opts.encoding == MyENCODING_AUTO ? self->chunk_opts.default_encoding : self->chunk_opts.encoding);
+		self->chunks = 0;
 	}
 	
 	STRLEN html_length;
 	const char *html_str = SvPV_const(html, html_length);
+	
+	// Try detect encoding only in first chunk
+	if (!self->chunks) {
+		myhtml_encoding_set(self->tree, html5_dom_auto_encoding(&self->chunk_opts, &html_str, &html_length));
+		html5_dom_apply_tree_options(self->tree, &self->chunk_opts);
+	}
+	
+	++self->chunks;
 	
 	status = myhtml_parse_chunk(self->tree, html_str, html_length);
 	if (status) {
@@ -780,7 +990,8 @@ CODE:
 		sub_croak(cv, "myhtml_parse_chunk failed:%d (%s)", status, modest_strerror(status));
 	}
 	
-	html5_dom_wait_for_tree_done(self->tree);
+	if (!self->chunk_opts.async)
+		html5_dom_wait_for_tree_done(self->tree);
 	
 	RETVAL = create_tree_object(self->tree, SvRV(ST(0)), self);
 	self->tree = NULL;
@@ -789,9 +1000,13 @@ OUTPUT:
 
 # Parse full html
 SV *
-parse(HTML5::DOM self, SV *html)
+parse(HTML5::DOM self, SV *html, HV *options = NULL)
 CODE:
 	mystatus_t status;
+	html5_dom_options_t opts = {0};
+	
+	html5_dom_parse_options(&opts, &self->opts, options);
+	html5_dom_check_options(cv, &opts);
 	
 	myhtml_tree_t *tree = myhtml_tree_create();
 	status = myhtml_tree_init(tree, self->myhtml);
@@ -803,13 +1018,17 @@ CODE:
 	STRLEN html_length;
 	const char *html_str = SvPV_const(html, html_length);
 	
-	status = myhtml_parse(tree, MyENCODING_UTF_8, html_str, html_length);
+	myencoding_t encoding = html5_dom_auto_encoding(&opts, &html_str, &html_length);
+	html5_dom_apply_tree_options(tree, &opts);
+	
+	status = myhtml_parse(tree, encoding, html_str, html_length);
 	if (status) {
 		myhtml_tree_destroy(tree);
 		sub_croak(cv, "myhtml_parse failed: %d (%s)", status, modest_strerror(status));
 	}
 	
-	html5_dom_wait_for_tree_done(tree);
+	if (!opts.async)
+		html5_dom_wait_for_tree_done(tree);
 	
 	RETVAL = create_tree_object(tree, SvRV(ST(0)), self);
 OUTPUT:
@@ -866,7 +1085,7 @@ CODE:
 	STRLEN text_len;
 	const char *text_str = SvPV_const(text, text_len);
 	myhtml_tree_node_t *node = myhtml_node_create(self->tree, MyHTML_TAG__COMMENT, MyHTML_NAMESPACE_HTML);
-	myhtml_node_text_set(node, text_str, text_len, self->tree->encoding);
+	myhtml_node_text_set(node, text_str, text_len, MyENCODING_DEFAULT);
 	RETVAL = node_to_sv(node);
 OUTPUT:
 	RETVAL
@@ -878,7 +1097,7 @@ CODE:
 	STRLEN text_len;
 	const char *text_str = SvPV_const(text, text_len);
 	myhtml_tree_node_t *node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, MyHTML_NAMESPACE_HTML);
-	myhtml_node_text_set(node, text_str, text_len, self->tree->encoding);
+	myhtml_node_text_set(node, text_str, text_len, MyENCODING_DEFAULT);
 	RETVAL = node_to_sv(node);
 OUTPUT:
 	RETVAL
@@ -995,6 +1214,24 @@ ALIAS:
 	getElementByAttribute	= 7
 CODE:
 	RETVAL = html5_node_simple_find(cv, myhtml_tree_get_document(self->tree), key, val, cmp, icase, ix);
+OUTPUT:
+	RETVAL
+
+# Get current tree encoding name
+SV *
+encoding(HTML5::DOM::Tree self)
+CODE:
+	size_t length = 0;
+	const char *name = myencoding_name_by_id(self->tree->encoding, &length);
+	RETVAL = newSVpv(name ? name : "", length);
+OUTPUT:
+	RETVAL
+
+# Get current tree encoding id
+SV *
+encodingId(HTML5::DOM::Tree self)
+CODE:
+	RETVAL = newSViv(self->tree->encoding);
 OUTPUT:
 	RETVAL
 
@@ -1249,7 +1486,7 @@ CODE:
 				myhtml_tree_node_add_child(self, fragment);
 			}
 		} else { // same as nodeValue, for user friendly API
-			myhtml_node_text_set(self, text_str, text_len, self->tree->encoding);
+			myhtml_node_text_set(self, text_str, text_len, MyENCODING_DEFAULT);
 		}
 		RETVAL = SvREFCNT_inc(ST(0));
 	} else {
@@ -1284,7 +1521,7 @@ CODE:
 			STRLEN text_len;
 			const char *text_str = SvPV_const(text, text_len);
 			
-			myhtml_node_text_set(self, text_str, text_len, self->tree->encoding);
+			myhtml_node_text_set(self, text_str, text_len, MyENCODING_DEFAULT);
 			RETVAL = SvREFCNT_inc(ST(0));
 		} else { // get node value
 			size_t text_len = 0;
@@ -1320,7 +1557,7 @@ CODE:
 			
 			// add text node
 			myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
-			myhtml_node_text_set(text_node, text_str, text_len, self->tree->encoding);
+			myhtml_node_text_set(text_node, text_str, text_len, MyENCODING_DEFAULT);
 			myhtml_tree_node_add_child(self, text_node);
 			RETVAL = SvREFCNT_inc(ST(0));
 		} else { // recursive serialize node to text
@@ -1719,11 +1956,12 @@ CODE:
 		
 		if (key_len) {
 			// if value is undef - only remove attribute
-			myhtml_attribute_remove_by_key(self, key_str, key_len);
 			if (SvTYPE(value) != SVt_NULL) {
 				STRLEN val_len = 0;
 				const char *val_str = SvPV_const(value, val_len);
-				myhtml_attribute_add(self, key_str, key_len, val_str, val_len, self->tree->encoding);
+				html5_dom_replace_attr_value(self, key_str, key_len, val_str, val_len, MyENCODING_DEFAULT);
+			} else {
+				myhtml_attribute_remove_by_key(self, key_str, key_len);
 			}
 		}
 		
@@ -1743,11 +1981,12 @@ CODE:
 					value = sv_stringify(value);
 					
 					// if value is undef - only remove attribute
-					myhtml_attribute_remove_by_key(self, key_name, key_len);
 					if (SvTYPE(value) != SVt_NULL) {
 						STRLEN val_len = 0;
 						const char *val_str = SvPV_const(value, val_len);
-						myhtml_attribute_add(self, key_name, key_len, val_str, val_len, self->tree->encoding);
+						html5_dom_replace_attr_value(self, key_name, key_len, val_str, val_len, MyENCODING_DEFAULT);
+					} else {
+						myhtml_attribute_remove_by_key(self, key_name, key_len);
 					}
 				}
 			}
