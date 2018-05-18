@@ -40,6 +40,22 @@
 	} \
 } while (0);
 
+// https://developer.mozilla.org/pl/docs/Web/API/Element/nodeType
+enum {
+	ELEMENT_NODE					= 1, 
+	ATTRIBUTE_NODE					= 2, 
+	TEXT_NODE						= 3, 
+	CDATA_SECTION_NODE				= 4, 
+	ENTITY_REFERENCE_NODE			= 5, 
+	ENTITY_NODE						= 6, 
+	PROCESSING_INSTRUCTION_NODE		= 7, 
+	COMMENT_NODE					= 8, 
+	DOCUMENT_NODE					= 9, 
+	DOCUMENT_TYPE_NODE				= 10, 
+	DOCUMENT_FRAGMENT_NODE			= 11, 
+	NOTATION_NODE					= 12
+};
+
 typedef struct {
 	long threads;
 	bool async;
@@ -315,8 +331,8 @@ static myhtml_tree_node_t *html5_dom_copy_foreign_node(myhtml_tree_t *tree, myht
 			attr = attr->next;
 		}
 	}
-    
-    return new_node;
+	
+	return new_node;
 }
 
 static SV *tree_to_sv(myhtml_tree_t *tree) {
@@ -421,8 +437,8 @@ static mycss_selectors_list_t *html5_parse_selector(mycss_entry_t *entry, const 
 	
 	*status_out = MyCSS_STATUS_OK;
 	
-    mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(entry), MyENCODING_UTF_8, query, query_len, &status);
-    if (status || list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
+	mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(entry), MyENCODING_UTF_8, query, query_len, &status);
+	if (status || list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
 		if (list)
 			mycss_selectors_list_destroy(mycss_entry_selectors(entry), list, true);
 		*status_out = status;
@@ -694,8 +710,8 @@ void html5_dom_replace_attr_value(myhtml_tree_node_t *node, const char *key, siz
 		
 		// set new value
 		mycore_string_init(node->tree->mchar, node->tree->mchar_node_id, &attr->value, (val_len + 1));
-        
-        // apply encoding
+		
+		// apply encoding
 		if (encoding == MyENCODING_UTF_8) {
 			mycore_string_append(&attr->value, val, val_len);
 		} else {
@@ -1345,6 +1361,8 @@ OUTPUT:
 # Tag name
 SV *
 tag(HTML5::DOM::Node self, SV *new_tag_name = NULL)
+ALIAS:
+	nodeName	= 1
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	
@@ -1414,6 +1432,32 @@ nodeHtml(HTML5::DOM::Node self, SV *text = NULL)
 CODE:
 	RETVAL = newSVpv("", 0);
 	myhtml_serialization_node_callback(self, sv_serialization_callback, RETVAL);
+OUTPUT:
+	RETVAL
+
+# Return node type
+int
+nodeType(HTML5::DOM::Node self)
+CODE:
+	html5_dom_tree_t *context = (html5_dom_tree_t *) self->tree->context;
+	RETVAL = 0;
+	if (self->tag_id != MyHTML_TAG__UNDEF) {
+		if (self->tag_id == MyHTML_TAG__TEXT) {
+			RETVAL = TEXT_NODE;
+		} else if (self->tag_id == MyHTML_TAG__COMMENT) {
+			RETVAL = COMMENT_NODE;
+		} else if (self->tag_id == MyHTML_TAG__DOCTYPE) {
+			RETVAL = DOCUMENT_TYPE_NODE;
+		} else if (context->fragment_tag_id && self->tag_id == context->fragment_tag_id) {
+			RETVAL = DOCUMENT_FRAGMENT_NODE;
+		} else {
+			RETVAL = ELEMENT_NODE;
+		}
+	} else {
+		// Modest myhtml bug - document node has tag_id == MyHTML_TAG__UNDEF
+		if (node_is_document(self))
+			RETVAL = DOCUMENT_NODE;
+	}
 OUTPUT:
 	RETVAL
 
@@ -1510,9 +1554,11 @@ OUTPUT:
 SV *
 text(HTML5::DOM::Node self, SV *text = NULL)
 ALIAS:
-	nodeValue	= 1
-	innerText	= 2
-	textContent	= 3
+	nodeValue		= 1
+	innerText		= 2
+	textContent		= 3
+	data			= 4
+	wholeText		= 5
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	if (!node_is_element(self)) {
@@ -1528,7 +1574,7 @@ CODE:
 			const char *text = myhtml_node_text(self, &text_len);
 			RETVAL = newSVpv(text ? text : "", text_len);
 		}
-	} else if (ix == 1) { // nodeValue can't used for elements
+	} else if (ix == 1 || ix == 4) { // nodeValue can't used for elements
 		RETVAL = &PL_sv_undef;
 	} else {
 		if (text) { // remove all childrens and add text node
@@ -1588,6 +1634,8 @@ OUTPUT:
 # Next element
 SV *
 next(HTML5::DOM::Node self)
+ALIAS:
+	nextElementSibling	= 1
 CODE:
 	myhtml_tree_node_t *node = myhtml_node_next(self);
 	while (node && !node_is_element(node))
@@ -1599,6 +1647,8 @@ OUTPUT:
 # Next node
 SV *
 nextNode(HTML5::DOM::Node self)
+ALIAS:
+	nextSibling	= 1
 CODE:
 	RETVAL = node_to_sv(myhtml_node_next(self));
 OUTPUT:
@@ -1607,6 +1657,8 @@ OUTPUT:
 # Prev element
 SV *
 prev(HTML5::DOM::Node self)
+ALIAS:
+	previousElementSibling	= 1
 CODE:
 	myhtml_tree_node_t *node = myhtml_node_prev(self);
 	while (node && !node_is_element(node))
@@ -1618,6 +1670,8 @@ OUTPUT:
 # Prev node
 SV *
 prevNode(HTML5::DOM::Node self)
+ALIAS:
+	previousSibling	= 1
 CODE:
 	RETVAL = node_to_sv(myhtml_node_prev(self));
 OUTPUT:
@@ -1626,41 +1680,82 @@ OUTPUT:
 # Parent node
 SV *
 parent(HTML5::DOM::Node self)
+ALIAS:
+	isConnected		= 1
+	parentNode		= 2
+	parentElement	= 3
 CODE:
-	RETVAL = node_to_sv(myhtml_node_parent(self));
+	RETVAL = ix == 1 ? newSViv(myhtml_node_parent(self) ? 1 : 0) : node_to_sv(myhtml_node_parent(self));
+OUTPUT:
+	RETVAL
+
+# Owner document
+SV *
+document(HTML5::DOM::Node self)
+ALIAS:
+	ownerDocument	= 1
+CODE:
+	RETVAL = node_to_sv(myhtml_tree_get_document(self->tree));
 OUTPUT:
 	RETVAL
 
 # Remove node from tree
 SV *
-remove(HTML5::DOM::Node self)
+remove(HTML5::DOM::Node self, HTML5::DOM::Node node = NULL)
+ALIAS:
+	removeChild	= 1
 CODE:
-	RETVAL = node_to_sv(myhtml_tree_node_remove(self));
+	if (ix == 1) {
+		if (!node)
+			sub_croak(cv, "%s is not of type %s", "node", "HTML5::DOM::Node");
+		if (node->parent != self)
+			sub_croak(cv, "The node to be removed is not a child of this node.");
+		RETVAL = node_to_sv(myhtml_tree_node_remove(node));
+	} else {
+		RETVAL = node_to_sv(myhtml_tree_node_remove(self));
+	}
 OUTPUT:
 	RETVAL
 
 # Append child to parent before current node
 SV *
-before(HTML5::DOM::Node self, HTML5::DOM::Node child)
+before(HTML5::DOM::Node self, HTML5::DOM::Node a, HTML5::DOM::Node b = NULL)
+ALIAS:
+	insertBefore	= 1
 CODE:
-	if (!myhtml_node_parent(self))
-		sub_croak(cv, "can't insert after detached node");
+	myhtml_tree_node_t *reference_node, *new_node;
 	
-	if (self->tree != child->tree) {
-		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
-		if (!child)
+	if (ix == 1) {
+		new_node = a;
+		reference_node = b;
+		
+		if (!reference_node)
+			sub_croak(cv, "%s is not of type %s", "reference_node", "HTML5::DOM::Node");
+		if (reference_node->parent != self)
+			sub_croak(cv, "The node before which the new node is to be inserted is not a child of this node.");
+	} else {
+		new_node = a;
+		reference_node = self;
+	}
+	
+	if (!myhtml_node_parent(reference_node))
+		sub_croak(cv, "can't insert before detached node");
+	
+	if (reference_node->tree != new_node->tree) {
+		myhtml_tree_node_remove(new_node);
+		new_node = html5_dom_recursive_clone_node(reference_node->tree, new_node, NULL);
+		if (!new_node)
 			sub_croak(cv, "node copying internal error");
 	}
 	
-	if (html5_dom_is_fragment(child)) {
-		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+	if (html5_dom_is_fragment(new_node)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
 		while (fragment_child) {
-			myhtml_tree_node_insert_before(self, fragment_child);
+			myhtml_tree_node_insert_before(reference_node, fragment_child);
 			fragment_child = myhtml_node_next(fragment_child);
 		}
 	} else {
-		myhtml_tree_node_insert_before(self, child);
+		myhtml_tree_node_insert_before(reference_node, new_node);
 	}
 	
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -1669,26 +1764,43 @@ OUTPUT:
 
 # Append child to parent after current node
 SV *
-after(HTML5::DOM::Node self, HTML5::DOM::Node child)
+after(HTML5::DOM::Node self, HTML5::DOM::Node a, HTML5::DOM::Node b = NULL)
+ALIAS:
+	insertAfter	= 1
 CODE:
-	if (!myhtml_node_parent(self))
+	myhtml_tree_node_t *reference_node, *new_node;
+	
+	if (ix == 1) {
+		new_node = a;
+		reference_node = b;
+		
+		if (!reference_node)
+			sub_croak(cv, "%s is not of type %s", "reference_node", "HTML5::DOM::Node");
+		if (reference_node->parent != self)
+			sub_croak(cv, "The node after which the new node is to be inserted is not a child of this node.");
+	} else {
+		new_node = a;
+		reference_node = self;
+	}
+	
+	if (!myhtml_node_parent(reference_node))
 		sub_croak(cv, "can't insert before detached node");
 	
-	if (self->tree != child->tree) {
-		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
-		if (!child)
+	if (reference_node->tree != new_node->tree) {
+		myhtml_tree_node_remove(new_node);
+		new_node = html5_dom_recursive_clone_node(reference_node->tree, new_node, NULL);
+		if (!new_node)
 			sub_croak(cv, "node copying internal error");
 	}
 	
-	if (html5_dom_is_fragment(child)) {
-		myhtml_tree_node_t *fragment_child = myhtml_node_last_child(child);
+	if (html5_dom_is_fragment(new_node)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_last_child(new_node);
 		while (fragment_child) {
-			myhtml_tree_node_insert_after(self, fragment_child);
+			myhtml_tree_node_insert_after(reference_node, fragment_child);
 			fragment_child = myhtml_node_prev(fragment_child);
 		}
 	} else {
-		myhtml_tree_node_insert_after(self, child);
+		myhtml_tree_node_insert_after(reference_node, new_node);
 	}
 	
 	RETVAL = SvREFCNT_inc(ST(0));
@@ -1698,6 +1810,8 @@ OUTPUT:
 # Append node child
 SV *
 append(HTML5::DOM::Node self, HTML5::DOM::Node child)
+ALIAS:
+	appendChild	= 1
 CODE:
 	if (!node_is_element(self))
 		sub_croak(cv, "can't append children to non-element node");
@@ -1726,6 +1840,8 @@ OUTPUT:
 # Prepend node child
 SV *
 prepend(HTML5::DOM::Node self, HTML5::DOM::Node child)
+ALIAS:
+	prependChild	= 1
 CODE:
 	if (!node_is_element(self))
 		sub_croak(cv, "can't prepend children to non-element node");
@@ -1763,29 +1879,46 @@ OUTPUT:
 
 # Replace node with child
 SV *
-replace(HTML5::DOM::Node self, HTML5::DOM::Node child)
+replace(HTML5::DOM::Node self, HTML5::DOM::Node a, HTML5::DOM::Node b = NULL)
+ALIAS:
+	replaceChild	= 1
 CODE:
-	if (self->tree != child->tree) {
-		myhtml_tree_node_remove(child);
-		child = html5_dom_recursive_clone_node(self->tree, child, NULL);
-		if (!child)
+	myhtml_tree_node_t *old_node, *new_node;
+	
+	if (ix == 1) {
+		new_node = a;
+		old_node = b;
+		
+		if (!old_node)
+			sub_croak(cv, "%s is not of type %s", "old_node", "HTML5::DOM::Node");
+		if (old_node->parent != self)
+			sub_croak(cv, "The node to be replaced is not a child of this node.");
+	} else {
+		new_node = a;
+		old_node = self;
+	}
+	
+	if (old_node->tree != new_node->tree) {
+		myhtml_tree_node_remove(new_node);
+		new_node = html5_dom_recursive_clone_node(old_node->tree, new_node, NULL);
+		if (!new_node)
 			sub_croak(cv, "node copying internal error");
 	}
 	
-	if (html5_dom_is_fragment(child)) {
-		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+	if (html5_dom_is_fragment(new_node)) {
+		myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
 		while (fragment_child) {
-			myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
+			myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
 			while (fragment_child) {
-				myhtml_tree_node_insert_before(self, fragment_child);
+				myhtml_tree_node_insert_before(old_node, fragment_child);
 				fragment_child = myhtml_node_next(fragment_child);
 			}
 		}
 	} else {
-		myhtml_tree_node_insert_before(self, child);
+		myhtml_tree_node_insert_before(old_node, new_node);
 	}
 	
-	myhtml_tree_node_remove(self);
+	myhtml_tree_node_remove(old_node);
 	
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
@@ -1794,6 +1927,8 @@ OUTPUT:
 # Clone node
 SV *
 clone(HTML5::DOM::Node self, bool deep = false, HTML5::DOM::Tree new_tree = NULL)
+ALIAS:
+	cloneNode	= 1
 CODE:
 	myhtml_tree_t *tree = new_tree ? new_tree->tree : self->tree;
 	if (deep) {
@@ -1806,7 +1941,7 @@ OUTPUT:
 
 # True if node is void
 bool
-isVoid(HTML5::DOM::Node self)
+void(HTML5::DOM::Node self)
 CODE:
 	RETVAL = myhtml_node_is_void_element(self);
 OUTPUT:
@@ -1814,7 +1949,7 @@ OUTPUT:
 
 # True if node is self-closed
 bool
-isSelfClosed(HTML5::DOM::Node self)
+selfClosed(HTML5::DOM::Node self)
 CODE:
 	RETVAL = myhtml_node_is_close_self(self);
 OUTPUT:
@@ -1903,6 +2038,8 @@ OUTPUT:
 # First child element
 SV *
 first(HTML5::DOM::Node self)
+ALIAS:
+	firstElementChild	= 1
 CODE:
 	myhtml_tree_node_t *node = myhtml_node_child(self);
 	while (node && !node_is_element(node))
@@ -1914,6 +2051,8 @@ OUTPUT:
 # First child node
 SV *
 firstNode(HTML5::DOM::Node self)
+ALIAS:
+	firstChild	= 1
 CODE:
 	RETVAL = node_to_sv(myhtml_node_child(self));
 OUTPUT:
@@ -1922,6 +2061,8 @@ OUTPUT:
 # Last child element
 SV *
 last(HTML5::DOM::Node self)
+ALIAS:
+	lastElementChild	= 1
 CODE:
 	myhtml_tree_node_t *node = myhtml_node_last_child(self);
 	while (node && !node_is_element(node))
@@ -1933,6 +2074,8 @@ OUTPUT:
 # Last child node
 SV *
 lastNode(HTML5::DOM::Node self)
+ALIAS:
+	lastChild	= 1
 CODE:
 	RETVAL = node_to_sv(myhtml_node_last_child(self));
 OUTPUT:
@@ -2066,6 +2209,8 @@ OUTPUT:
 # Return collection with children nodes
 SV *
 childrenNode(HTML5::DOM::Node self)
+ALIAS:
+	childNodes	= 1
 CODE:
 	myhtml_tree_node_t *child = myhtml_node_child(self);
 	AV *arr = newAV();
@@ -2103,12 +2248,12 @@ CODE:
 		mycss_entry_destroy(entry, 1);
 		sub_croak(cv, "mycss_entry_init failed: %d (%s)", status, modest_strerror(status));
 	}
-    
+	
 	html5_css_parser_t *self = (html5_css_parser_t *) safemalloc(sizeof(html5_css_parser_t));
 	self->mycss = mycss;
 	self->entry = entry;
 	self->encoding = MyENCODING_UTF_8;
-    RETVAL = self;
+	RETVAL = self;
 OUTPUT:
 	RETVAL
 
@@ -2123,8 +2268,8 @@ CODE:
 	STRLEN query_len;
 	const char *query_str = SvPV_const(query, query_len);
 	
-    mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(self->entry), MyENCODING_UTF_8, query_str, query_len, &status);
-    if (list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
+	mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(self->entry), MyENCODING_UTF_8, query_str, query_len, &status);
+	if (list == NULL || (list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD)) {
 		if (list)
 			mycss_selectors_list_destroy(mycss_entry_selectors(self->entry), list, true);
 		sub_croak(cv, "bad selector: %s", query_str);
@@ -2136,7 +2281,7 @@ CODE:
 	selector->list = list;
 	selector->parser = self;
 	SvREFCNT_inc(selector->parent);
-    RETVAL = pack_pointer("HTML5::DOM::CSS::Selector", selector);
+	RETVAL = pack_pointer("HTML5::DOM::CSS::Selector", selector);
 OUTPUT:
 	RETVAL
 
