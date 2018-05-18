@@ -1471,8 +1471,8 @@ ALIAS:
 	outerHTML	= 2
 CODE:
 	if (text) {
-		if (ix == 2)
-			sub_croak(cv, "outerHTML is read only");
+		if (ix == 2 && !myhtml_node_parent(self)) // outerHTML
+			sub_croak(cv, "This element has no parent node.");
 		
 		text = sv_stringify(text);
 		STRLEN text_len;
@@ -1482,13 +1482,14 @@ CODE:
 			// parse fragment
 			mystatus_t status;
 			html5_fragment_parts_t parts = {0};
-			myhtml_tag_id_t context_tag_id = self->tag_id;
+			myhtml_tree_node_t *context_node = ix == 2 ? myhtml_node_parent(self) : self;
+			myhtml_tag_id_t context_tag_id = context_node->tag_id;
 			
 			// hack for document node
-			if (node_is_document(self))
+			if (node_is_document(context_node))
 				context_tag_id = MyHTML_TAG_HTML;
 			
-			myhtml_tree_node_t *fragment = html5_dom_parse_fragment(self->tree, context_tag_id, myhtml_node_namespace(self), text_str, text_len, &parts, &status);
+			myhtml_tree_node_t *fragment = html5_dom_parse_fragment(self->tree, context_tag_id, myhtml_node_namespace(context_node), text_str, text_len, &parts, &status);
 			if (status)
 				sub_croak(cv, "myhtml_parse_fragment failed: %d (%s)", status, modest_strerror(status));
 			
@@ -1517,13 +1518,20 @@ CODE:
 				while (node) {
 					myhtml_tree_node_t *next = myhtml_node_next(node);
 					myhtml_tree_node_remove(node);
-					myhtml_tree_node_add_child(self, node);
+					if (ix == 2) { // outerHTML
+						myhtml_tree_node_insert_before(self, node);
+					} else { // innerHTML
+						myhtml_tree_node_add_child(self, node);
+					}
 					node = next;
 				}
 				
+				// remove self if outerHTML
+				if (ix == 2)
+					myhtml_tree_node_remove(self);
+				
 				// free fragment
-				if (fragment != self->tree->node_html)
-					html5_tree_node_delete_recursive(fragment);
+				html5_tree_node_delete_recursive(fragment);
 			} else {
 				// fragment now is html node, why not?
 				fragment->tag_id = MyHTML_TAG_HTML;
