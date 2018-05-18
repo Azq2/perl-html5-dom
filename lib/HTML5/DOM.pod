@@ -11,6 +11,7 @@ HTML5::DOM - Super fast html5 DOM library with css selectors (based on Modest/My
 =head1 DESCRIPTION
 
 L<HTML5::DOM> is a fast HTML5 parser and DOM manipulatin library with CSS4 selector, fully conformant with the HTML5 specification.
+
 It based on  L<https://github.com/lexborisov/Modest> as selector engine and L<https://github.com/lexborisov/myhtml> as HTML5 parser. 
 
 =head1 HTML5::DOM
@@ -81,6 +82,8 @@ Parse chunk of html stream.
 
 Completes chunked parsing and return L<HTML::DOM::Tree|/"HTML::DOM::Tree"> object.
 
+
+
 =head1 HTML5::DOM::Tree
 
 DOM tree object.
@@ -125,8 +128,8 @@ For more details about fragments: L<https://html.spec.whatwg.org/multipage/parsi
 
  # create new fragment node with custom context tag/namespace and options
  my $node = $tree->parseFragment("some <b>bold</b> and <i>italic</i> text", "div", "html", {
-	# some options override
-	encoding => "windows-1251"
+    # some options override
+    encoding => "windows-1251"
  });
  
  print $node->html; # some <b>bold</b> and <i>italic</i> text
@@ -217,7 +220,7 @@ This is more fast equivalent to [class~="value"] selector.
 Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
 
  my $tree = HTML5::DOM->new
-	->parse('<div class="red color">red</div><div class="blue color">blue</div>');
+    ->parse('<div class="red color">red</div><div class="blue color">blue</div>');
  my $collection = $tree->findClass('color');
  print $collection->[0]->html; # <div class="red color">red</div>
  print $collection->[1]->html; # <div class="red color">blue</div>
@@ -239,7 +242,7 @@ Find all element nodes in tree with specified attribute and optional matching va
 Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
 
  my $tree = HTML5::DOM->new
-	->parse('<div class="red color">red</div><div class="blue color">blue</div>');
+    ->parse('<div class="red color">red</div><div class="blue color">blue</div>');
  my $collection = $tree->findAttr('class', 'CoLoR', 1, '~');
  print $collection->[0]->html; # <div class="red color">red</div>
  print $collection->[1]->html; # <div class="red color">blue</div>
@@ -309,7 +312,7 @@ See L<"CONSTANTS"> for namespace constants list.
  # ...some your work...
  $tree->wait; # wait before parsing threads done
 
-Blocking wait for tree parsing done.
+Blocking wait for tree parsing done. Only for async mode.
 
 =head3 parsed
 
@@ -318,13 +321,277 @@ Blocking wait for tree parsing done.
  # ...some your work...
  while (!$tree->parsed); # wait before parsing threads done
 
-Non-blocking way for check if tree parsing done.
+Non-blocking way for check if tree parsing done. Only for async mode.
 
 =head3 parser
 
  my $parser = $tree->parser;
 
 Return parent L<HTML5::DOM|/"HTML5::DOM">.
+
+
+
+=head1 HTML5::DOM::Node
+
+DOM node object.
+
+=head3 tag
+
+=head3 nodeName
+
+ my $tag_name = $node->tag;
+ my $tag_name = $node->nodeName; # alias
+
+Return node tag name (eg. div or span)
+
+ $node->tag($tag);
+ $node->nodeName($tag); # alias
+
+Set new node tag name. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM::Element"> nodes.
+
+ print $node->html; # <div></div>
+ $node->tag('span');
+ print $node->html; # <span></span>
+ print $node->tag; # span
+
+=head3 tagId
+
+ my $tag_id = $node->tagId;
+
+Return node tag id. See L<"CONSTANTS"> for tag constants list.
+
+ $node->tagId($tag_id);
+
+Set new node tag id. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM::Element"> nodes.
+
+ print $node->html; # <div></div>
+ $node->tagId(HTML5::DOM::TAG_SPAN);
+ print $node->html; # <span></span>
+ print $node->tagId; # 117
+
+=head3 namespace
+
+ my $tag_ns = $node->namespace;
+
+Return node namespace (eg. html or svg)
+
+ $node->namespace($namespace);
+
+Set new node namespace name. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM::Element"> nodes.
+
+ print $node->namespace; # html
+ $node->namespace('svg');
+ print $node->namespace; # svg
+
+=head3 namespaceId
+
+ my $tag_ns_id = $node->namespaceId;
+
+Return node namespace id. See L<"CONSTANTS"> for tag constants list.
+
+ $node->namespaceId($tag_id);
+
+Set new node namespace by id. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM::Element"> nodes.
+
+ print $node->namespace; # html
+ $node->namespaceId(HTML5::DOM::NS_SVG);
+ print $node->namespaceId; # 3
+ print $node->namespace; # svg
+
+=head3 tree
+
+ my $tree = $node->tree;
+ 
+Return parent tree object.
+
+=head3 nodeType
+
+ my $type = $node->nodeType;
+ 
+Return node type. All types:
+
+ HTML5::DOM::ELEMENT_NODE                   => 1, 
+ HTML5::DOM::ATTRIBUTE_NODE                 => 2,   # not supported
+ HTML5::DOM::TEXT_NODE                      => 3, 
+ HTML5::DOM::CDATA_SECTION_NODE             => 4,   # not supported
+ HTML5::DOM::ENTITY_REFERENCE_NODE          => 5,   # not supported
+ HTML5::DOM::ENTITY_NODE                    => 6,   # not supported
+ HTML5::DOM::PROCESSING_INSTRUCTION_NODE    => 7,   # not supported
+ HTML5::DOM::COMMENT_NODE                   => 8, 
+ HTML5::DOM::DOCUMENT_NODE                  => 9, 
+ HTML5::DOM::DOCUMENT_TYPE_NODE             => 10, 
+ HTML5::DOM::DOCUMENT_FRAGMENT_NODE         => 11, 
+ HTML5::DOM::NOTATION_NODE                  => 12   # not supported
+
+Compatible with: L<https://developer.mozilla.org/ru/docs/Web/API/Node/nodeType>
+
+=head3 next
+
+=head3 nextElementSibling
+
+ my $node2 = $node->next;
+ my $node2 = $node->nextElementSibling; # alias
+
+Return next sibling element node
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <li>Linux</li>
+        <!-- comment -->
+        <li>OSX</li>
+        <li>Windows</li>
+    </ul>
+ ');
+ my $li = $parser->at('ul li');
+ print $li->text;               # Linux
+ print $li->next->text;         # OSX
+ print $li->next->next->text;   # Windows
+
+=head3 prev
+
+=head3 previousElementSibling
+
+ my $node2 = $node->prev;
+ my $node2 = $node->previousElementSibling; # alias
+
+Return previous sibling element node
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <li>Linux</li>
+        <!-- comment -->
+        <li>OSX</li>
+        <li class="win">Windows</li>
+    </ul>
+ ');
+ my $li = $parser->at('ul li.win');
+ print $li->text;               # Windows
+ print $li->prev->text;         # OSX
+ print $li->prev->prev->text;   # Linux
+
+=head3 nextNode
+
+=head3 nextSibling
+
+ my $node2 = $node->nextNode;
+ my $node2 = $node->nextSibling; # alias
+
+Return next sibling node
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <li>Linux</li>
+        <!-- comment -->
+        <li>OSX</li>
+        <li>Windows</li>
+    </ul>
+ ');
+ my $li = $parser->at('ul li');
+ print $li->text;                       # Linux
+ print $li->nextNode->text;             # <!-- comment -->
+ print $li->nextNode->nextNode->text;   # OSX
+
+=head3 prevNode
+
+=head3 previousSibling
+
+ my $node2 = $node->prevNode;
+ my $node2 = $node->previousSibling; # alias
+
+Return previous sibling node
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <li>Linux</li>
+        <!-- comment -->
+        <li>OSX</li>
+        <li class="win">Windows</li>
+    </ul>
+ ');
+ my $li = $parser->at('ul li.win');
+ print $li->text;                       # Windows
+ print $li->prevNode->text;             # OSX
+ print $li->prevNode->prevNode->text;   # <!-- comment -->
+
+=head3 first
+
+=head3 firstElementChild
+
+ my $node2 = $node->first;
+ my $node2 = $node->firstElementChild; # alias
+
+Return first children element
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <!-- comment -->
+        <li>Linux</li>
+        <li>OSX</li>
+        <li class="win">Windows</li>
+    </ul>
+ ');
+ my $ul = $parser->at('ul');
+ print $ul->first->text; # Linux
+
+=head3 last
+
+=head3 lastElementChild
+
+ my $node2 = $node->last;
+ my $node2 = $node->lastElementChild; # alias
+
+Return last children element
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <li>Linux</li>
+        <li>OSX</li>
+        <li class="win">Windows</li>
+        <!-- comment -->
+    </ul>
+ ');
+ my $ul = $parser->at('ul');
+ print $ul->last->text; # Windows
+
+=head3 firstNode
+
+=head3 firstChild
+
+ my $node2 = $node->firstNode;
+ my $node2 = $node->firstChild; # alias
+
+Return first children node
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <!-- comment -->
+        <li>Linux</li>
+        <li>OSX</li>
+        <li class="win">Windows</li>
+    </ul>
+ ');
+ my $ul = $parser->at('ul');
+ print $ul->firstNode->html; # <!-- comment -->
+
+=head3 lastNode
+
+=head3 lastChild
+
+ my $node2 = $node->lastNode;
+ my $node2 = $node->lastChild; # alias
+
+Return last children node
+ 
+ my $parser = HTML5::DOM->new->parse('
+    <ul>
+        <li>Linux</li>
+        <li>OSX</li>
+        <li class="win">Windows</li>
+        <!-- comment -->
+    </ul>
+ ');
+ my $ul = $parser->at('ul');
+ print $ul->lastNode->html; # <!-- comment -->
 
 =head1 PARSER OPTIONS
 
