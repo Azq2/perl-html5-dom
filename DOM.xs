@@ -1567,6 +1567,7 @@ ALIAS:
 	textContent		= 3
 	data			= 4
 	wholeText		= 5
+	outerText		= 6
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	if (!node_is_element(self)) {
@@ -1612,8 +1613,17 @@ CODE:
 			// add text node
 			myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
 			myhtml_node_text_set(text_node, text_str, text_len, MyENCODING_DEFAULT);
-			myhtml_tree_node_add_child(self, text_node);
+			if (ix == 6) { // outerText
+				myhtml_tree_node_insert_before(self, text_node);
+			} else { // innerText
+				myhtml_tree_node_add_child(self, text_node);
+			}
 			RETVAL = SvREFCNT_inc(ST(0));
+			
+			if (ix == 6) {
+				// remove self, if outerText
+				myhtml_tree_node_remove(self);
+			}
 		} else { // recursive serialize node to text
 			RETVAL = newSVpv("", 0);
 			html5_dom_recursive_node_text(self, RETVAL);
