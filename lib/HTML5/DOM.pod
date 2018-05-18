@@ -13,13 +13,11 @@ HTML5::DOM - Super fast html5 DOM library with css selectors (based on Modest/My
 L<HTML5::DOM> is a fast HTML5 parser and DOM manipulatin library with CSS4 selector, fully conformant with the HTML5 specification.
 It based on  L<https://github.com/lexborisov/Modest> as selector engine and L<https://github.com/lexborisov/myhtml> as HTML5 parser. 
 
-=head1 METHODS
+=head1 HTML5::DOM
 
-L<HTML5::DOM> implements the following methods.
+HTML5 parser object.
 
 =head2 new
-
-=head3 new($options)
 
  # with default options
  my $parser = HTML5::DOM->new;
@@ -38,6 +36,295 @@ L<HTML5::DOM> implements the following methods.
  });
 
 Creates new parser object with options. See L<"PARSER OPTIONS"> for details. 
+
+=head3 parse
+
+ my $html = '<div>Hello world!</div>';
+ 
+ # parsing with options defined in HTML5::DOM->new
+ my $tree = $parser->parse($html);
+ 
+ # parsing with custom options (extends options defined in HTML5::DOM->new)
+ my $tree = $parser->parse($html, {
+     scripts     => 0, 
+ });
+
+Parse html string and return L<HTML::DOM::Tree|/"HTML::DOM::Tree"> object.
+
+=head3 parseChunkStart
+
+ # start chunked parsing with options defined in HTML5::DOM->new
+ # call parseChunkStart without options is useless, 
+ # because first call of parseChunk automatically call parseChunkStart. 
+ $parser->parseChunkStart();
+ 
+ # start chunked parsing with custom options (extends options defined in HTML5::DOM->new)
+ $parser->parseChunkStart({
+    scripts     => 0, 
+ });
+
+Init chunked parsing. See L<"PARSER OPTIONS"> for details. 
+
+=head3 parseChunk
+
+ $parser->parseChunkStart()->parseChunk('<')->parseChunk('di')->parseChunk('v>');
+
+Parse chunk of html stream.
+
+=head3 parseChunkEnd
+
+ # start some chunked parsing
+ $parser->parseChunk('<')->parseChunk('di')->parseChunk('v>');
+ 
+ # end parsing and get tree
+ my $tree = $parser->parseChunkEnd();
+
+Completes chunked parsing and return L<HTML::DOM::Tree|/"HTML::DOM::Tree"> object.
+
+=head1 HTML5::DOM::Tree
+
+DOM tree object.
+
+=head3 createElement
+
+ # create new node with tag "div"
+ my $node = $tree->createElement("div");
+ 
+ # create new node with tag "g" with namespace "svg"
+ my $node = $tree->createElement("div", "svg");
+
+Create new L<HTML5::DOM::Element|/"HTML5::DOM::Element"> with specified tag and namespace.
+
+=head3 createComment
+
+ # create new comment
+ my $node = $tree->createComment("ololo");
+ 
+ print $node->html; # <!-- ololo -->
+
+Create new L<HTML5::DOM::Comment|/"HTML5::DOM::Comment"> with specified value.
+
+=head3 createTextNode
+
+ # create new text node
+ my $node = $tree->createTextNode("ololo ololo i am driver ufo >>>");
+ 
+ print $node->html; # ololo ololo i am driver ufo &gt;&gt;&gt;
+
+Create new L<HTML5::DOM::Text|/"HTML5::DOM::Text"> with specified value.
+
+=head3 parseFragment
+
+ my $fragment = $tree->parseFragment($html, $context = 'div', $context_ns = 'html', $options = {});
+
+Parse fragment html and create new L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment">.
+For more details about fragments: L<https://html.spec.whatwg.org/multipage/parsing.html#parsing-html-fragments>
+
+ # simple create new fragment
+ my $node = $tree->parseFragment("some <b>bold</b> and <i>italic</i> text");
+
+ # create new fragment node with custom context tag/namespace and options
+ my $node = $tree->parseFragment("some <b>bold</b> and <i>italic</i> text", "div", "html", {
+	# some options override
+	encoding => "windows-1251"
+ });
+ 
+ print $node->html; # some <b>bold</b> and <i>italic</i> text
+
+See L<"PARSER OPTIONS"> for details. 
+
+=head3 document
+
+ my $node = $tree->document;
+
+Return L<HTML5::DOM::Document|/"HTML5::DOM::Document"> node of current tree;
+
+=head3 root
+
+ my $node = $tree->root;
+
+Return root node of current tree. (always <html>)
+
+=head3 head
+
+ my $node = $tree->head;
+
+Return <head> node of current tree. 
+
+=head3 body
+
+ my $node = $tree->body;
+
+Return <body> node of current tree. 
+
+=head3 at
+
+=head3 querySelector
+
+ my $node = $tree->at($selector);
+ my $node = $tree->querySelector($selector); # alias
+
+Find one element node in tree using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
+
+Return node, or undef if not find.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
+ my $node = $tree->at('body > div.red');
+ print $node->html; # <div class="red">red</div>
+
+=head3 find
+
+=head3 querySelectorAll
+
+ my $collection = $tree->find($selector);
+ my $collection = $tree->querySelectorAll($selector); # alias
+
+Find all element nodes in tree using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
+ my $collection = $tree->at('body > div.red, body > div.blue');
+ print $collection->[0]->html; # <div class="red">red</div>
+ print $collection->[1]->html; # <div class="red">blue</div>
+
+=head3 findTag
+
+=head3 getElementsByTagName
+
+ my $collection = $tree->findTag($tag);
+ my $collection = $tree->getElementsByTagName($tag); # alias
+
+Find all element nodes in tree with specified tag name.
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
+ my $collection = $tree->findTag('div');
+ print $collection->[0]->html; # <div class="red">red</div>
+ print $collection->[1]->html; # <div class="red">blue</div>
+
+=head3 findClass
+
+=head3 getElementsByClassName
+
+ my $collection = $tree->findClass($class);
+ my $collection = $tree->getElementsByClassName($class); # alias
+
+Find all element nodes in tree with specified class name.
+This is more fast equivalent to [class~="value"] selector.
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new
+	->parse('<div class="red color">red</div><div class="blue color">blue</div>');
+ my $collection = $tree->findClass('color');
+ print $collection->[0]->html; # <div class="red color">red</div>
+ print $collection->[1]->html; # <div class="red color">blue</div>
+
+=head3 findAttr
+
+=head3 getElementByAttribute
+ 
+ # Find all elements with attribute
+ my $collection = $tree->findAttr($attribute);
+ my $collection = $tree->getElementByAttribute($attribute); # alias
+ 
+ # Find all elements with attribute and mathcing value
+ my $collection = $tree->findAttr($attribute, $value, $case = 0, $cmp = '=');
+ my $collection = $tree->getElementByAttribute($attribute, $value, $case = 0, $cmp = '='); # alias
+
+Find all element nodes in tree with specified attribute and optional matching value.
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new
+	->parse('<div class="red color">red</div><div class="blue color">blue</div>');
+ my $collection = $tree->findAttr('class', 'CoLoR', 1, '~');
+ print $collection->[0]->html; # <div class="red color">red</div>
+ print $collection->[1]->html; # <div class="red color">blue</div>
+ 
+CSS selector analogs:
+ 
+ # [$attribute=$value]
+ my $collection = $tree->findAttr($attribute, $value, 0, '=');
+ 
+ # [$attribute=$value i]
+ my $collection = $tree->findAttr($attribute, $value, 1, '=');
+ 
+ # [$attribute~=$value]
+ my $collection = $tree->findAttr($attribute, $value, 0, '~');
+ 
+ # [$attribute|=$value]
+ my $collection = $tree->findAttr($attribute, $value, 0, '|');
+ 
+ # [$attribute*=$value]
+ my $collection = $tree->findAttr($attribute, $value, 0, '*');
+
+=head3 encoding
+
+=head3 encodingId
+
+ print "encoding: ".$tree->encoding."\n"; # UTF-8
+ print "encodingId: ".$tree->encodingId."\n"; # 0
+
+Return current tree encoding. See L<"ENCODINGS"> for details. 
+
+=head3 tag2id
+
+ print "tag id: ".HTML5::DOM::TAG_A."\n"; # tag id: 4
+ print "tag id: ".$tree->tag2id("a")."\n"; # tag id: 4
+
+Convert tag name to id. Return 0 (HTML5::DOM::TAG__UNDEF), if tag not exists in tree.
+See L<"CONSTANTS"> for tag constants list. 
+
+=head3 id2tag
+
+ print "tag name: ".$tree->id2tag(4)."\n"; # tag name: a
+ print "tag name: ".$tree->id2tag(HTML5::DOM::TAG_A)."\n"; # tag name: a
+
+Convert tag id to name. Return undef, if tag id not exists in tree.
+See L<"CONSTANTS"> for tag constants list. 
+
+=head3 namespace2id
+
+ print "ns id: ".HTML5::DOM::NS_HTML."\n"; # ns id: 1
+ print "ns id: ".$tree->namespace2id("html")."\n"; # ns id: 1
+
+Convert namespace name to id. Return 0 (HTML5::DOM::NS_UNDEF), if namespace not exists in tree.
+See L<"CONSTANTS"> for namespace constants list. 
+
+=head3 id2namespace
+
+ print "ns name: ".$tree->id2namespace(1)."\n"; # ns name: html
+ print "ns name: ".$tree->id2namespace(HTML5::DOM::NS_HTML)."\n"; # ns name: html
+
+Convert namespace id to name. Return undef, if namespace id not exists.
+See L<"CONSTANTS"> for namespace constants list. 
+
+=head3 wait
+
+ my $parser = HTML5::DOM->new({async => 1});
+ my $tree = $parser->parse($some_big_html_file);
+ # ...some your work...
+ $tree->wait; # wait before parsing threads done
+
+Blocking wait for tree parsing done.
+
+=head3 parsed
+
+ my $parser = HTML5::DOM->new({async => 1});
+ my $tree = $parser->parse($some_big_html_file);
+ # ...some your work...
+ while (!$tree->parsed); # wait before parsing threads done
+
+Non-blocking way for check if tree parsing done.
+
+=head3 parser
+
+ my $parser = $tree->parser;
+
+Return parent L<HTML5::DOM|/"HTML5::DOM">.
 
 =head1 PARSER OPTIONS
 
