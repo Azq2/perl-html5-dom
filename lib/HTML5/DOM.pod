@@ -402,7 +402,7 @@ Set new node namespace by id. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM:
 
  my $tree = $node->tree;
  
-Return parent tree object.
+Return parent L<HTML5::DOM::Tree|/"HTML5::DOM::Tree">.
 
 =head3 nodeType
 
@@ -434,7 +434,7 @@ Compatible with: L<https://developer.mozilla.org/ru/docs/Web/API/Node/nodeType>
 
 Return next sibling element node
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <li>Linux</li>
         <!-- comment -->
@@ -442,7 +442,7 @@ Return next sibling element node
         <li>Windows</li>
     </ul>
  ');
- my $li = $parser->at('ul li');
+ my $li = $tree->at('ul li');
  print $li->text;               # Linux
  print $li->next->text;         # OSX
  print $li->next->next->text;   # Windows
@@ -456,7 +456,7 @@ Return next sibling element node
 
 Return previous sibling element node
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <li>Linux</li>
         <!-- comment -->
@@ -464,7 +464,7 @@ Return previous sibling element node
         <li class="win">Windows</li>
     </ul>
  ');
- my $li = $parser->at('ul li.win');
+ my $li = $tree->at('ul li.win');
  print $li->text;               # Windows
  print $li->prev->text;         # OSX
  print $li->prev->prev->text;   # Linux
@@ -478,7 +478,7 @@ Return previous sibling element node
 
 Return next sibling node
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <li>Linux</li>
         <!-- comment -->
@@ -486,7 +486,7 @@ Return next sibling node
         <li>Windows</li>
     </ul>
  ');
- my $li = $parser->at('ul li');
+ my $li = $tree->at('ul li');
  print $li->text;                       # Linux
  print $li->nextNode->text;             # <!-- comment -->
  print $li->nextNode->nextNode->text;   # OSX
@@ -500,7 +500,7 @@ Return next sibling node
 
 Return previous sibling node
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <li>Linux</li>
         <!-- comment -->
@@ -508,7 +508,7 @@ Return previous sibling node
         <li class="win">Windows</li>
     </ul>
  ');
- my $li = $parser->at('ul li.win');
+ my $li = $tree->at('ul li.win');
  print $li->text;                       # Windows
  print $li->prevNode->text;             # OSX
  print $li->prevNode->prevNode->text;   # <!-- comment -->
@@ -522,7 +522,7 @@ Return previous sibling node
 
 Return first children element
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <!-- comment -->
         <li>Linux</li>
@@ -530,7 +530,7 @@ Return first children element
         <li class="win">Windows</li>
     </ul>
  ');
- my $ul = $parser->at('ul');
+ my $ul = $tree->at('ul');
  print $ul->first->text; # Linux
 
 =head3 last
@@ -542,7 +542,7 @@ Return first children element
 
 Return last children element
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <li>Linux</li>
         <li>OSX</li>
@@ -550,7 +550,7 @@ Return last children element
         <!-- comment -->
     </ul>
  ');
- my $ul = $parser->at('ul');
+ my $ul = $tree->at('ul');
  print $ul->last->text; # Windows
 
 =head3 firstNode
@@ -562,7 +562,7 @@ Return last children element
 
 Return first children node
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <!-- comment -->
         <li>Linux</li>
@@ -570,7 +570,7 @@ Return first children node
         <li class="win">Windows</li>
     </ul>
  ');
- my $ul = $parser->at('ul');
+ my $ul = $tree->at('ul');
  print $ul->firstNode->html; # <!-- comment -->
 
 =head3 lastNode
@@ -582,7 +582,7 @@ Return first children node
 
 Return last children node
  
- my $parser = HTML5::DOM->new->parse('
+ my $tree = HTML5::DOM->new->parse('
     <ul>
         <li>Linux</li>
         <li>OSX</li>
@@ -590,7 +590,7 @@ Return last children node
         <!-- comment -->
     </ul>
  ');
- my $ul = $parser->at('ul');
+ my $ul = $tree->at('ul');
  print $ul->lastNode->html; # <!-- comment -->
 
 =head1 PARSER OPTIONS
