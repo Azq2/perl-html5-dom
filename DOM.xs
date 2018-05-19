@@ -2458,8 +2458,25 @@ OUTPUT:
 # attr({"key" => "value"})	- bulk set value for attribute "key" (return this)
 SV *
 attr(HTML5::DOM::Element self, SV *key = NULL, SV *value = NULL)
+ALIAS:
+	setAttribute	= 1
+	getAttribute	= 2
 CODE:
 	RETVAL = &PL_sv_undef;
+	
+	if (ix == 1) { // setAttribute
+		if (!key)
+			sub_croak(cv, "attribute key required for setAttribute");
+		
+		if (!value)
+			sub_croak(cv, "attribute value required for setAttribute");
+	} else if (ix == 2) { // getAttribute
+		if (!key)
+			sub_croak(cv, "attribute key required for getAttribute");
+		
+		key = sv_stringify(key);
+		value = NULL;
+	}
 	
 	if (key && value) { // Set value by key or delete by key
 		key = sv_stringify(key);
@@ -2547,6 +2564,8 @@ OUTPUT:
 # Remove attribute by key
 SV *
 removeAttr(HTML5::DOM::Element self, SV *key = NULL)
+ALIAS:
+	removeAttribute	= 1
 CODE:
 	key = sv_stringify(key);
 	

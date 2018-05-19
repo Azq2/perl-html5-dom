@@ -1345,12 +1345,12 @@ Returns all child elements of current node in [HTML5::DOM::Collection](#html5dom
 
 ```perl
 my $tree = HTML5::DOM->new->parse('
-       <ul>
-               <li>Perl</li>
-               <!-- comment -->
-               <li>PHP</li>
-               <li>C++</li>
-       </ul>
+   <ul>
+       <li>Perl</li>
+       <!-- comment -->
+       <li>PHP</li>
+       <li>C++</li>
+   </ul>
 ');
 my $collection = $tree->at('ul')->children;
 print $collection->[0]->html; # <li>Perl</li>
@@ -1371,12 +1371,12 @@ Returns all child nodes of current node in [HTML5::DOM::Collection](#html5domcol
 
 ```perl
 my $tree = HTML5::DOM->new->parse('
-       <ul>
-               <li>Perl</li>
-               <!-- comment -->
-               <li>PHP</li>
-               <li>C++</li>
-       </ul>
+   <ul>
+       <li>Perl</li>
+       <!-- comment -->
+       <li>PHP</li>
+       <li>C++</li>
+   </ul>
 ');
 my $collection = $tree->at('ul')->childrenNode;
 print $collection->[0]->html; # <li>Perl</li>
@@ -1384,6 +1384,83 @@ print $collection->[1]->html; # <!-- comment -->
 print $collection->[2]->html; # <li>PHP</li>
 print $collection->[3]->html; # <li>C++</li>
 ```
+
+### attr
+
+### removeAttr
+
+Universal attributes accessor, for single human-friendly api.
+
+```perl
+# attribute get
+my $value = $node->attr($key);
+
+# attribute set
+my $node = $node->attr($key, $value);
+my $node = $node->attr($key => $value);
+
+# attribute remove
+my $node = $node->attr($key, undef);
+my $node = $node->attr($key => undef);
+my $node = $node->removeAttr($key);
+
+# bulk attributes set
+my $node = $node->attr({$key => $value, $key2 => $value2});
+
+# bulk attributes remove
+my $node = $node->attr({$key => undef, $key2 => undef});
+
+# bulk get all attributes in hash
+my $hash = $node->attr;
+```
+
+Example:
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <div id="test" data-test="test value" data-href="#"></div>
+');
+my $div = $tree->at('ul');
+$div->attr("data-new", "test");
+print $div->attr("data-test");     # test value
+print $div->{"data-test"};         # test value
+print $div->attr->{"data-test"};   # test value
+
+# {id => "test", "data-test" => "test value", "data-href" => "#", "data-new" => "test"}
+print $div->attr;
+
+$div->removeAttr("data-test");
+
+# {id => "test", "data-href" => "#", "data-new" => "test"}
+print $div->attr;
+```
+
+### getAttribute
+
+```perl
+my $value = $node->getAttribute($key);
+my $value = $node->attr($key); # alias
+```
+
+Get attribute value by key.
+
+### setAttribute
+
+```perl
+my $node = $node->setAttribute($key, $value);
+my $node = $node->attr($key, $value); # alias
+```
+
+Set new value or create new attibute. 
+
+### removeAttribute
+
+```perl
+my $node = $node->removeAttribute($key);
+my $node = $node->removeAttr($key); # alias
+```
+
+Remove attribute.
 
 ### at
 
@@ -1559,14 +1636,14 @@ my $collection = $node->findAttr($attribute, $value, 0, '*');
 my $display = $node->getDefaultBoxType;
 ```
 
-Get default CSS "display" property for tag (useful for functions like a &lt;innerText|/innerText>).
+Get default CSS "display" property for tag (useful for functions like a [innerText](#innertext)).
 
 ```perl
 my $tree = HTML5::DOM->new
    ->parse('<div class="red color">red</div><script>alert()</script><b>bbb</b>');
-print $tree->at('div')->getDefaultBoxType();           # block
-print $tree->at('script')->getDefaultBoxType();        # none
-print $tree->at('v')->getDefaultBoxType();                     # inline
+print $tree->at('div')->getDefaultBoxType();       # block
+print $tree->at('script')->getDefaultBoxType();    # none
+print $tree->at('v')->getDefaultBoxType();         # inline
 
 ```
 
