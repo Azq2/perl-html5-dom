@@ -6,8 +6,8 @@ use overload
 	'""'		=> sub { $_[0]->html }, 
 	'@{}'		=> sub { $_[0]->childrenNode->array }, 
 	'%{}'		=> \&__attrHashAccess, 
-	'=='		=> sub { defined $_[1] && $_[0]->isEqualNode($_[1]) }, 
-	'!='		=> sub { !defined $_[1] || !$_[0]->isEqualNode($_[1]) }, 
+	'=='		=> sub { defined $_[1] && $_[0]->isSameNode($_[1]) }, 
+	'!='		=> sub { !defined $_[1] || !$_[0]->isSameNode($_[1]) }, 
 	'bool'		=> sub { 1 }, 
 	fallback	=> 1;
 

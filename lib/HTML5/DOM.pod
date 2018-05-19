@@ -593,6 +593,230 @@ Return last children node
  my $ul = $tree->at('ul');
  print $ul->lastNode->html; # <!-- comment -->
 
+=head3 isConnected
+
+ my $flag = $node->isConnected;
+
+Return true, if node has parent.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div id="test"></div>
+ ');
+ print $tree->at('#test')->isConnected;             # 1
+ print $tree->createElement("div")->isConnected;    # 0
+
+=head3 parent
+
+=head3 parentElement
+
+ my $node = $node->parent;
+ my $node = $node->parentElement; # alias
+
+Return parent node. Return undef, if node detached.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div id="test"></div>
+ ');
+ print $tree->at('#test')->parent->tag; # body
+
+=head3 document
+
+=head3 ownerDocument
+
+ my $doc = $node->document;
+ my $doc = $node->ownerDocument; # alias
+
+Return parent L<HTML5::DOM::Document|/"HTML5::DOM::Document">. 
+
+ my $tree = HTML5::DOM->new->parse('
+    <div id="test"></div>
+ ');
+ print ref($tree->at('#test')->document);   # HTML5::DOM::Document
+
+=head3 append
+
+=head3 appendChild
+
+ my $node = $node->append($child);
+ my $child = $node->appendChild($child); # alias
+
+Append node to child nodes.
+
+B<append> - returned value is the self node, for chain calls
+
+B<appendChild> - returned value is the appended child except when the given child is a L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment">, 
+in which case the empty L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment"> is returned.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ $tree->at('div')
+    ->append($tree->createElement('br'))
+    ->append($tree->createElement('br'));
+ print $tree->at('div')->html; # <div>some <b>bold</b> text<br /><br /></div>
+
+=head3 prepend
+
+=head3 prependChild
+
+ my $node = $node->prepend($child);
+ my $child = $node->prependChild($child); # alias
+
+Prepend node to child nodes.
+
+B<prepend> - returned value is the self node, for chain calls
+
+B<prependChild> - returned value is the prepended child except when the given child is a L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment">, 
+in which case the empty L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment"> is returned.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ $tree->at('div')
+    ->prepend($tree->createElement('br'))
+    ->prepend($tree->createElement('br'));
+ print $tree->at('div')->html; # <div><br /><br />some <b>bold</b> text</div>
+
+=head3 replace
+
+=head3 replaceChild
+
+ my $old_node = $old_node->replace($new_node);
+ my $old_node = $old_node->parent->replaceChild($old_node, $new_node); # alias
+
+Replace node in parent child nodes.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ my $old = $tree->at('b')->replace($tree->createElement('br'));
+ print $old->html;              # <b>bold</b>
+ print $tree->at('div')->html;  # <div>some <br /> text</div>
+
+=head3 before
+
+=head3 insertBefore
+
+ my $node = $node->before($new_node);
+ my $new_node = $node->parent->insertBefore($new_node, $node); # alias
+
+Insert new node before current node.
+
+B<before> - returned value is the self node, for chain calls
+
+B<insertBefore> - returned value is the added child except when the given child is a L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment">, 
+in which case the empty L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment"> is returned.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ $tree->at('b')->before($tree->createElement('br'));
+ print $tree->at('div')->html; # <div>some <br /><b>bold</b> text</div>
+
+=head3 after
+
+=head3 insertAfter
+
+ my $node = $node->after($new_node);
+ my $new_node = $node->parent->insertAfter($new_node, $node); # alias
+
+Insert new node after current node.
+
+B<after> - returned value is the self node, for chain calls
+
+B<insertAfter> - returned value is the added child except when the given child is a L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment">, 
+in which case the empty L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment"> is returned.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ $tree->at('b')->after($tree->createElement('br'));
+ print $tree->at('div')->html; # <div>some <b>bold</b><br /> text</div>
+
+=head3 remove
+
+=head3 removeChild
+
+ my $node = $node->remove;
+ my $node = $node->parent->removeChild($node); # alias
+
+Remove node from parent. Return removed node.
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ print $tree->at('b')->remove->html;    # <b>bold</b>
+ print $tree->at('div')->html;          # <div>some  text</div>
+
+=head3 clone
+
+=head3 cloneNode
+
+ # clone node to current tree
+ my $node = $node->clone($deep = 0);
+ my $node = $node->cloneNode($deep = 0); # alias
+
+ # clone node to foreign tree
+ my $node = $node->clone($deep, $new_tree);
+ my $node = $node->cloneNode($deep, $new_tree); # alias
+
+Clone node. 
+
+B<deep> = 0 - only specified node, without childs. 
+
+B<deep> = 1 - deep copy with all child nodes.
+
+B<new_tree> - destination tree (if need copy to foreign tree)
+
+ my $tree = HTML5::DOM->new->parse('
+    <div>some <b>bold</b> text</div>
+ ');
+ print $tree->at('b')->clone(0)->html; # <b></b>
+ print $tree->at('b')->clone(1)->html; # <b>bold</b>
+
+=head3 void
+
+ my $flag = $node->void;
+
+Return true if node is void. For more details: L<http://w3c.github.io/html-reference/syntax.html#void-elements>
+
+ print $tree->createElement('br')->void; # 1
+
+=head3 selfClosed
+
+ my $flag = $node->selfClosed;
+
+Return true if node self closed. 
+
+ print $tree->createElement('br')->selfClosed; # 1
+
+=head3 position
+
+ my $position = $node->position;
+
+Return offsets in input buffer.
+
+ print Dumper($node->position);
+ # $VAR1 = {'raw_length' => 3, 'raw_begin' => 144, 'element_begin' => 143, 'element_length' => 5}
+
+=head3 isSameNode
+
+ my $flag = $node->isSameNode($other_node);
+
+Tests whether two nodes are the same, that is if they reference the same object.
+ 
+ my $tree = HTML5::DOM->new->parse('
+    <ul>
+        <li>test</li>
+        <li>not test</li>
+        <li>test</li>
+    </ul>
+ ');
+ my $li = $tree->find('li');
+ print $li->[0]->isSameNode($li->[0]); # 1
+ print $li->[0]->isSameNode($li->[1]); # 0
+ print $li->[0]->isSameNode($li->[2]); # 0
+
 =head1 PARSER OPTIONS
 
 Options for L<HTML5::DOM::new>, L<HTML5::DOM::parse>, L<HTML5::DOM::new>, L<HTML5::DOM::Node::parseFragment>

@@ -6,8 +6,8 @@ use overload
 	'""'		=> sub { $_[0]->document->html }, 
 	'@{}'		=> sub { [$_[0]->document] }, 
 	'bool'		=> sub { 1 }, 
-	'=='		=> sub { defined $_[1] && $_[0]->isEqualTree($_[1]) }, 
-	'!='		=> sub { !defined $_[1] || !$_[0]->isEqualTree($_[1]) }, 
+	'=='		=> sub { defined $_[1] && $_[0]->isSameTree($_[1]) }, 
+	'!='		=> sub { !defined $_[1] || !$_[0]->isSameTree($_[1]) }, 
 	fallback	=> 1;
 
 sub text { shift->document->text(@_) }

@@ -1547,7 +1547,7 @@ OUTPUT:
 
 # Compare tree reference
 bool
-isEqualTree(HTML5::DOM::Tree self, SV *other_tree)
+isSameTree(HTML5::DOM::Tree self, SV *other_tree)
 CODE:
 	RETVAL = false;
 	if (sv_derived_from(other_tree, "HTML5::DOM::Tree")) {
@@ -2318,6 +2318,27 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Some bad idea to get "uniq id"
+SV *
+hash(HTML5::DOM::Node self)
+CODE:
+	RETVAL = newSViv(PTR2IV(self));
+OUTPUT:
+	RETVAL
+
+# Compare node reference
+bool
+isSameNode(HTML5::DOM::Node self, SV *other_node)
+CODE:
+	RETVAL = false;
+	if (sv_derived_from(other_node, "HTML5::DOM::Node")) {
+		myhtml_tree_node_t *node = INT2PTR(myhtml_tree_node_t *, SvIV((SV*)SvRV(other_node)));
+		if (node == self)
+			RETVAL = true;
+	}
+OUTPUT:
+	RETVAL
+
 void
 DESTROY(HTML5::DOM::Node self)
 CODE:
@@ -2348,27 +2369,6 @@ CODE:
 		}
 		SvREFCNT_dec(tree->sv);
 	}
-
-# Some bad idea to get "uniq id"
-SV *
-hash(HTML5::DOM::Node self)
-CODE:
-	RETVAL = newSViv(PTR2IV(self));
-OUTPUT:
-	RETVAL
-
-# Compare node reference
-bool
-isEqualNode(HTML5::DOM::Node self, SV *other_node)
-CODE:
-	RETVAL = false;
-	if (sv_derived_from(other_node, "HTML5::DOM::Node")) {
-		myhtml_tree_node_t *node = INT2PTR(myhtml_tree_node_t *, SvIV((SV*)SvRV(other_node)));
-		if (node == self)
-			RETVAL = true;
-	}
-OUTPUT:
-	RETVAL
 
 #################################################################
 # HTML5::DOM::Element (extends Node)
