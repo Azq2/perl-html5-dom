@@ -5,6 +5,7 @@ use strict;
 use File::Slurp qw|read_file write_file|;
 use File::Basename qw|dirname|;
 use POSIX;
+use Pod::Markdown::Github;
 
 genReadmeMd();
 genTagsDisplayProp();
@@ -12,10 +13,9 @@ genErrorCodes();
 getConstants();
 
 sub genReadmeMd {
-	use Pod::Markdown;
 	my $pod = read_file(dirname(__FILE__)."/../lib/HTML5/DOM.pod");
 	my $markdown;
-	my $parser = Pod::Markdown->new;
+	my $parser = Pod::Markdown::Github->new;
 	$parser->output_string(\$markdown);
 	$parser->parse_string_document($pod);
 	
