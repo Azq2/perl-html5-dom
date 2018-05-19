@@ -595,6 +595,45 @@ Return last children node
 
 =head3 html
 
+Universal html serialization and fragment parsing acessor, for single human-friendly api.
+
+ my $html = $node->html();
+ my $node = $node->html($new_html);
+
+=over
+
+=item *
+
+As getter this similar to L<outerText|/outerText>
+
+=item *
+
+As setter this similar to L<innerText|/innerText>
+
+=item *
+
+As setter for non-element nodes this similar to L<nodeValue|/nodeValue>
+
+=back
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some   text <b>bold</b></div>');
+ 
+ # get text content for element
+ my $node = $tree->at('#test');
+ print $node->html;                     # <div id="test">some   text <b>bold</b></div>
+ $comment->html('<b>new</b>');
+ print $comment->html;                  # <div id="test"><b>new</b></div>
+ 
+ my $comment = $tree->createComment("comment text");
+ print $comment->html;                  # <!-- comment text -->
+ $comment->html('new comment text');
+ print $comment->html;                  # <!-- new comment text -->
+ 
+ my $text_node = $tree->createTextNode("plain text >");
+ print $text_node->html;                # plain text &gt;
+ $text_node->html('new>plain>text');
+ print $text_node->html;                # new&gt;plain&gt;text
+
 =head3 innerHTML
 
 =head3 outerHTML
@@ -611,9 +650,9 @@ HTML serialization of the node's descendants.
 Example:
 
  my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
- print $tree->html;                         # <div id="test">some <b>bold</b> test</div>
- print $tree->createComment('test')->html;  # <!-- test -->
- print $tree->createTextNode('test')->html; # test
+ print $tree->outerHTML;                         # <div id="test">some <b>bold</b> test</div>
+ print $tree->createComment('test')->outerHTML;  # <!-- test -->
+ print $tree->createTextNode('test')->outerHTML; # test
 
 =item *
 
@@ -625,9 +664,9 @@ HTML serialization of the node and its descendants.
 Example:
 
  my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
- print $tree->html;                         # some <b>bold</b> test
- print $tree->createComment('test')->html;  # <!-- test -->
- print $tree->createTextNode('test')->html; # test
+ print $tree->innerHTML;                         # some <b>bold</b> test
+ print $tree->createComment('test')->innerHTML;  # <!-- test -->
+ print $tree->createTextNode('test')->innerHTML; # test
 
 =item *
 
@@ -640,7 +679,7 @@ Removes all of the element's descendants and replaces them with nodes constructe
 Example:
 
  my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
- print $tree->at('#test')->html('<i>italic</i>');
+ print $tree->at('#test')->innerHTML('<i>italic</i>');
  print $tree->body->innerHTML;  # <div id="test"><i>italic</i></div>
 
 =item *
@@ -663,6 +702,194 @@ See, for more info:
 L<https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML>
 
 L<https://developer.mozilla.org/en-US/docs/Web/API/Element/outerHTML>
+
+=head3 text
+
+Universal text acessor, for single human-friendly api. 
+
+ my $text = $node->text();
+ my $node = $node->text($new_text);
+
+=over
+
+=item *
+
+For L<HTML5::DOM::Text|/"HTML5::DOM::Text"> is similar to L<nodeValue|/nodeValue> (as setter/getter)
+
+=item *
+
+For L<HTML5::DOM::Comment|/"HTML5::DOM::Comment"> is similar to L<nodeValue|/nodeValue> (as setter/getter)
+
+=item *
+
+For L<HTML5::DOM::DocType|/"HTML5::DOM::DocType"> is similar to L<nodeValue|/nodeValue> (as setter/getter)
+
+=item *
+
+For L<HTML5::DOM::Element|/"HTML5::DOM::Element"> is similar to L<textContent|/textContent> (as setter/getter)
+
+=back
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some   text <b>bold</b></div>');
+ 
+ # get text content for element
+ my $node = $tree->at('#test');
+ print $node->text;                     # some   text bold
+ $comment->text('<new node content>');
+ print $comment->html;                  # &lt;new node conten&gt;
+ 
+ my $comment = $tree->createComment("comment text");
+ print $comment->text;                  # comment text
+ $comment->text('new comment text');
+ print $comment->html;                  # <!-- new comment text -->
+ 
+ my $text_node = $tree->createTextNode("plain text");
+ print $text_node->text;                # plain text
+ $text_node->text('new>plain>text');
+ print $text_node->html;                # new&gt;plain&gt;text
+
+=head3 innerText
+
+=head3 outerText
+
+=head3 textContent
+
+=over
+
+=item *
+
+Represents the "rendered" text content of a node and its descendants. 
+Using default CSS "display" property for tags based on Firefox user-agent style. 
+
+Only works for elements, for other nodes return undef.
+
+ my $text = $node->innerText;
+ my $text = $node->outerText; # alias
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('
+    <div id="test">
+        some       
+        <b>      bold     </b>       
+        test
+        <script>alert()</script>
+    </div>
+ ');
+ print $tree->body->innerText; # some bold test
+
+See, for more info: L<https://html.spec.whatwg.org/multipage/dom.html#the-innertext-idl-attribute>
+
+=item *
+
+Removes all of its children and replaces them with a text nodes and <br> with the given value.
+Only works for elements, for other nodes throws exception.
+
+=over
+
+=item *
+
+All new line chars (\r\n, \r, \n) replaces to <br />
+
+=item *
+
+All other text content replaces to text nodes
+
+=back
+
+ my $node = $node->innerText($text);
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some text <b>bold</b></div>');
+ $tree->at('#test')->innerText("some\nnew\ntext >");
+ print $tree->at('#test')->html;    # <div id="test">some<br />new<br />text &gt;</div>
+
+See, for more info: L<https://html.spec.whatwg.org/multipage/dom.html#the-innertext-idl-attribute>
+
+=item *
+
+Removes the current node and replaces it with the given text.
+Only works for elements, for other nodes throws exception.
+
+=over
+
+=item *
+
+All new line chars (\r\n, \r, \n) replaces to <br />
+
+=item *
+
+All other text content replaces to text nodes
+
+=item *
+
+Similar to innerText($text), but removes current node
+
+=back
+
+ my $node = $node->outerText($text);
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some text <b>bold</b></div>');
+ $tree->at('#test')->outerText("some\nnew\ntext >");
+ print $tree->body->html;   # <body>some<br />new<br />text &gt;</body>
+
+See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/outerText>
+
+=item *
+
+Represents the text content of a node and its descendants.
+
+Only works for elements, for other nodes return undef.
+
+ my $text = $node->text;
+ my $text = $node->textContent; # alias
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<b>    test      </b><script>alert()</script>');
+ print $tree->body->text; #     test      alert()
+
+See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent>
+
+=item *
+
+Removes all of its children and replaces them with a single text node with the given value.
+
+ # parse fragment and replace child nodes with it
+ my $node = $node->text($new_text);
+ my $node = $node->textContent($new_text);
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
+ print $tree->at('#test')->text('<bla bla bla>');
+ print $tree->at('#test')->html;  # <div id="test">&lt;bla bla bla&gt;</div>
+
+See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent>
+
+=back
+
+=head3 nodeValue
+
+=head3 data
+
+ my $value = $node->nodeValue();
+ my $value = $node->data(); # alias
+
+ my $node = $node->nodeValue($new_value);
+ my $node = $node->data($new_value); # alias
+
+Get or set value of node. Only works for non-element nodes, such as  L<HTML5::DOM::Element|/"HTML5::DOM::Text">,  L<HTML5::DOM::Element|/"HTML5::DOM::DocType">, 
+L<HTML5::DOM::Element|/"HTML5::DOM::Comment">. Return undef for other.
+
+ my $tree = HTML5::DOM->new->parse('');
+ my $comment = $tree->createComment("comment text");
+ print $comment->nodeValue;                 # comment text
+ $comment->nodeValue('new comment text');
+ print $comment->html;                      # <!-- new comment text -->
 
 =head3 isConnected
 
