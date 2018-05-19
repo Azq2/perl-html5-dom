@@ -6,8 +6,30 @@ use File::Slurp qw|read_file write_file|;
 use File::Basename qw|dirname|;
 use POSIX;
 
+genTagsDisplayProp();
 genErrorCodes();
 getConstants();
+
+sub genTagsDisplayProp {
+	my $text = read_file(dirname(__FILE__).'/tags.txt');
+	my $tmp = "";
+	while ($text =~ /([\w\d_-]+)\s+([\w\d_-]+)/gi) {
+		my ($tag, $display) = ($1, $2);
+		
+		$display = uc($display);
+		$display =~ s/-/_/g;
+		$display = "TAG_UA_STYLE_$display";
+		
+		$tag = uc($tag);
+		$tag =~ s/-/_/g;
+		$tag = "MyHTML_TAG_$tag";
+		
+		$tmp .= "case $tag:\n\treturn $display;\n";
+		
+		print "$tag -> $display\n";
+	}
+	write_file(dirname(__FILE__)."/../gen/tags_ua_style.c", $tmp);
+}
 
 sub genErrorCodes {
 	# errors codes
@@ -39,7 +61,7 @@ sub genErrorCodes {
 		print $cfg->{file}." - error names ok\n";
 	}
 	
-	write_file(dirname(__FILE__)."/../modest_errors.c", $tmp);
+	write_file(dirname(__FILE__)."/../gen/modest_errors.c", $tmp);
 }
 
 sub getConstants {

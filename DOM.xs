@@ -56,6 +56,27 @@ enum {
 	NOTATION_NODE					= 12
 };
 
+enum {
+	TAG_UA_STYLE_NONE					= 0, 
+	TAG_UA_STYLE_INLINE					= 1, 
+	TAG_UA_STYLE_BLOCK					= 2, 
+	TAG_UA_STYLE_INLINE_BLOCK			= 3, 
+	TAG_UA_STYLE_LIST_ITEM				= 4, 
+	TAG_UA_STYLE_TABLE					= 5, 
+	TAG_UA_STYLE_TABLE_CAPTION			= 6, 
+	TAG_UA_STYLE_TABLE_CELL				= 7, 
+	TAG_UA_STYLE_TABLE_COLUMN			= 8, 
+	TAG_UA_STYLE_TABLE_COLUMN_GROUP		= 9, 
+	TAG_UA_STYLE_TABLE_FOOTER_GROUP		= 10, 
+	TAG_UA_STYLE_TABLE_HEADER_GROUP		= 11, 
+	TAG_UA_STYLE_TABLE_ROW				= 12, 
+	TAG_UA_STYLE_TABLE_ROW_GROUP		= 13, 
+	TAG_UA_STYLE_RUBY					= 14, 
+	TAG_UA_STYLE_RUBY_BASE				= 15, 
+	TAG_UA_STYLE_RUBY_TEXT				= 16, 
+	TAG_UA_STYLE_RUBY_TEXT_CONTAINER	= 17, 
+};
+
 typedef struct {
 	long threads;
 	bool async;
@@ -112,13 +133,35 @@ typedef struct {
 	myhtml_tree_node_t *document;
 } html5_fragment_parts_t;
 
+typedef struct {
+	bool new_line;
+	bool last_br;
+	mycore_string_t value;
+} html5_dom_inner_text_state_t;
+
 typedef html5_dom_parser_t *			HTML5__DOM;
 typedef myhtml_collection_t *			HTML5__DOM__Collection;
 typedef myhtml_tree_node_t *			HTML5__DOM__Node;
+typedef myhtml_tree_node_t *			HTML5__DOM__Element;
+typedef myhtml_tree_node_t *			HTML5__DOM__Text;
+typedef myhtml_tree_node_t *			HTML5__DOM__Comment;
+typedef myhtml_tree_node_t *			HTML5__DOM__Document;
+typedef myhtml_tree_node_t *			HTML5__DOM__Fragment;
+typedef myhtml_tree_node_t *			HTML5__DOM__DocType;
 typedef html5_dom_tree_t *				HTML5__DOM__Tree;
 typedef html5_css_parser_t *			HTML5__DOM__CSS;
 typedef html5_css_selector_t *			HTML5__DOM__CSS__Selector;
 typedef html5_css_selector_entry_t *	HTML5__DOM__CSS__Selector__Entry;
+
+static inline int utf8_char_size(char c) {
+	if ((c & 0xE0) == 0xC0)
+		return 2;
+	if ((c & 0xF0) == 0xE0)
+		return 3;
+	if ((c & 0xF8) == 0xF0)
+		return 4;
+	return 1;
+}
 
 static inline bool html5_dom_is_fragment(myhtml_tree_node_t *node) {
 	html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
@@ -127,7 +170,7 @@ static inline bool html5_dom_is_fragment(myhtml_tree_node_t *node) {
 
 static const char *modest_strerror(mystatus_t status) {
 	switch (status) {
-		#include "modest_errors.c"	
+		#include "gen/modest_errors.c"	
 	}
 	return status ? "UNKNOWN" : "";
 }
@@ -208,6 +251,13 @@ static inline SV *pack_pointer(const char *clazz, void *ptr) {
 	return sv;
 }
 
+static int html5_dom_get_ua_display_prop(myhtml_tree_node_t *node) {
+	switch (node->tag_id) {
+		#include "gen/tags_ua_style.c"	
+	}
+	return TAG_UA_STYLE_INLINE;
+}
+
 static void html5_dom_recursive_node_text(myhtml_tree_node_t *node, SV *sv) {
 	node = myhtml_node_child(node);
 	while (node) {
@@ -220,6 +270,172 @@ static void html5_dom_recursive_node_text(myhtml_tree_node_t *node, SV *sv) {
 			html5_dom_recursive_node_text(node, sv);
 		}
 		node = myhtml_node_next(node);
+	}
+}
+
+static void html5_dom_rtrim_mystring(mycore_string_t *str, char c) {
+	size_t i = str->length;
+	while (i > 0) {
+		--i;
+		
+		if (str->data[i] != c)
+			break;
+		
+		str->data[i] = '\0';
+		--str->length;
+	}
+}
+
+// Try to implements https://html.spec.whatwg.org/multipage/dom.html#the-innertext-idl-attribute
+// Using default user-agent box model types for tags instead of real css.
+static void html5_dom_recursive_node_inner_text(myhtml_tree_node_t *node, html5_dom_inner_text_state_t *state) {
+	if (node->tag_id == MyHTML_TAG__TEXT) {
+		size_t text_len = 0;
+		const char *text = myhtml_node_text(node, &text_len);
+		
+		bool is_empty = true;
+		for (size_t i = 0; i < text_len; ++i) {
+			// skip multubyte chars
+			int utf_len = utf8_char_size(text[i]);
+			if (utf_len > 1) {
+				mycore_string_append(&state->value, &text[i], utf_len);
+				i += utf_len - 1;
+				continue;
+			}
+			
+			// skip CR
+			if (text[i] == '\r')
+				continue;
+			
+			// collapse spaces
+			if (isspace(text[i])) {
+				bool skip_spaces = (state->value.length > 0 && state->value.data[state->value.length - 1] == ' ') || state->new_line;
+				if (skip_spaces)
+					continue;
+				mycore_string_append_one(&state->value, ' ');
+			}
+			// save other chars
+			else {
+				mycore_string_append_one(&state->value, text[i]);
+				is_empty = false;
+				state->new_line = false;
+			}
+		}
+		
+		if (!is_empty)
+			state->last_br = false;
+	} else if (node_is_element(node)) {
+		// get default box model type for tag
+		int display = html5_dom_get_ua_display_prop(node);
+		
+		// skip hidden nodes
+		if (display == TAG_UA_STYLE_NONE)
+			return;
+		
+		// skip some special nodes
+		switch (node->tag_id) {
+			case MyHTML_TAG_TEXTAREA:
+			case MyHTML_TAG_INPUT:
+			case MyHTML_TAG_AUDIO:
+			case MyHTML_TAG_VIDEO:
+				return;
+		}
+		
+		// <br> always inserts \n
+		if (node->tag_id == MyHTML_TAG_BR) {
+			mycore_string_append_one(&state->value, '\n');
+			state->new_line = true;
+			state->last_br = true;
+		} else {
+			switch (display) {
+				case TAG_UA_STYLE_BLOCK:
+				case TAG_UA_STYLE_TABLE:
+				case TAG_UA_STYLE_TABLE_CAPTION:
+					// if last token - line break, then collapse
+					// if last token - text, then insert new line break
+					if (!state->last_br) {
+						html5_dom_rtrim_mystring(&state->value, ' ');
+						mycore_string_append_one(&state->value, '\n');
+						state->new_line = true;
+						state->last_br = true;
+					}
+				break;
+				
+				case TAG_UA_STYLE_TABLE_ROW:
+					
+				break;
+			}
+			
+			myhtml_tree_node_t *child = myhtml_node_child(node);
+			while (child) {
+				html5_dom_recursive_node_inner_text(child, state);
+				child = myhtml_node_next(child);
+			}
+			
+			switch (display) {
+				case TAG_UA_STYLE_BLOCK:
+				case TAG_UA_STYLE_TABLE:
+				case TAG_UA_STYLE_TABLE_CAPTION:
+					// if last token - line break, then collapse
+					// if last token - text, then insert new line break
+					if (!state->last_br) {
+						html5_dom_rtrim_mystring(&state->value, ' ');
+						if (node->tag_id == MyHTML_TAG_P) {
+							// chrome inserts two \n after <p>
+							mycore_string_append_one(&state->value, '\n');
+							mycore_string_append_one(&state->value, '\n');
+						} else {
+							mycore_string_append_one(&state->value, '\n');
+						}
+						state->new_line = true;
+						state->last_br = true;
+					}
+				break;
+				
+				case TAG_UA_STYLE_TABLE_CELL:
+				{
+					bool is_last_cell = false;
+					myhtml_tree_node_t *cell = myhtml_node_last_child(myhtml_node_parent(node));
+					while (cell) {
+						if (html5_dom_get_ua_display_prop(cell) == TAG_UA_STYLE_TABLE_CELL) {
+							is_last_cell = cell == node;
+							break;
+						}
+						cell = myhtml_node_prev(cell);
+					}
+					
+					if (!is_last_cell) {
+						html5_dom_rtrim_mystring(&state->value, ' ');
+						mycore_string_append_one(&state->value, '\t');
+					}
+					
+					state->new_line = true;
+				}
+				break;
+				
+				case TAG_UA_STYLE_TABLE_ROW:
+				{
+					bool is_last_row = false;
+					myhtml_tree_node_t *row = myhtml_node_last_child(myhtml_node_parent(node));
+					while (row) {
+						if (html5_dom_get_ua_display_prop(row) == TAG_UA_STYLE_TABLE_ROW) {
+							is_last_row = (row == node);
+							break;
+						}
+						row = myhtml_node_prev(row);
+					}
+					
+					if (!is_last_row) {
+						html5_dom_rtrim_mystring(&state->value, ' ');
+						mycore_string_append_one(&state->value, '\n');
+						state->last_br = true;
+					}
+					
+					state->new_line = true;
+				}
+				break;
+			}
+		}
 	}
 }
 
@@ -1307,6 +1523,27 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Some bad idea to get "uniq id"
+SV *
+hash(HTML5::DOM::Node self)
+CODE:
+	RETVAL = newSViv(PTR2IV(self));
+OUTPUT:
+	RETVAL
+
+# Compare tree reference
+bool
+isEqualTree(HTML5::DOM::Tree self, SV *other_tree)
+CODE:
+	RETVAL = false;
+	if (sv_derived_from(other_tree, "HTML5::DOM::Tree")) {
+		html5_dom_tree_t *tree = INT2PTR(html5_dom_tree_t *, SvIV((SV*)SvRV(other_tree)));
+		if (tree == self)
+			RETVAL = true;
+	}
+OUTPUT:
+	RETVAL
+
 void
 DESTROY(HTML5::DOM::Tree self)
 CODE:
@@ -1566,8 +1803,7 @@ ALIAS:
 	innerText		= 2
 	textContent		= 3
 	data			= 4
-	wholeText		= 5
-	outerText		= 6
+	outerText		= 5
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	if (!node_is_element(self)) {
@@ -1613,20 +1849,31 @@ CODE:
 			// add text node
 			myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
 			myhtml_node_text_set(text_node, text_str, text_len, MyENCODING_DEFAULT);
-			if (ix == 6) { // outerText
+			if (ix == 5) { // outerText
 				myhtml_tree_node_insert_before(self, text_node);
 			} else { // innerText
 				myhtml_tree_node_add_child(self, text_node);
 			}
 			RETVAL = SvREFCNT_inc(ST(0));
 			
-			if (ix == 6) {
+			if (ix == 5) {
 				// remove self, if outerText
 				myhtml_tree_node_remove(self);
 			}
 		} else { // recursive serialize node to text
-			RETVAL = newSVpv("", 0);
-			html5_dom_recursive_node_text(self, RETVAL);
+			if (ix == 2 || ix == 5) { // innerText, outerText
+				html5_dom_inner_text_state_t state = {0};
+				state.last_br = true;
+				state.new_line = true;
+				
+				mycore_string_init(self->tree->mchar, self->tree->mchar_node_id, &state.value, 1);
+				html5_dom_recursive_node_inner_text(self, &state);
+				RETVAL = newSVpv(state.value.data ? state.value.data : "", state.value.length);
+				mycore_string_destroy(&state.value, 0);
+			} else { // text, textContent
+				RETVAL = newSVpv("", 0);
+				html5_dom_recursive_node_text(self, RETVAL);
+			}
 		}
 	}
 OUTPUT:
@@ -2017,12 +2264,33 @@ CODE:
 		SvREFCNT_dec(tree->sv);
 	}
 
+# Some bad idea to get "uniq id"
+SV *
+hash(HTML5::DOM::Node self)
+CODE:
+	RETVAL = newSViv(PTR2IV(self));
+OUTPUT:
+	RETVAL
+
+# Compare node reference
+bool
+isEqualNode(HTML5::DOM::Node self, SV *other_node)
+CODE:
+	RETVAL = false;
+	if (sv_derived_from(other_node, "HTML5::DOM::Node")) {
+		myhtml_tree_node_t *node = INT2PTR(myhtml_tree_node_t *, SvIV((SV*)SvRV(other_node)));
+		if (node == self)
+			RETVAL = true;
+	}
+OUTPUT:
+	RETVAL
+
 #################################################################
 # HTML5::DOM::Element (extends Node)
 #################################################################
 # Find by css query
 SV *
-find(HTML5::DOM::Node self, SV *query, SV *combinator = NULL)
+find(HTML5::DOM::Element self, SV *query, SV *combinator = NULL)
 ALIAS:
 	at					= 1
 	querySelector		= 2
@@ -2039,7 +2307,7 @@ OUTPUT:
 # findAttr(key), getElementByAttribute(key)									- get nodes by attribute key
 # findAttr(key, val, case, cmp), getElementByAttribute(key, val, case, cmp)	- get nodes by attribute value
 SV *
-findTag(HTML5::DOM::Node self, SV *key, SV *val = NULL, bool icase = false, SV *cmp = NULL)
+findTag(HTML5::DOM::Element self, SV *key, SV *val = NULL, bool icase = false, SV *cmp = NULL)
 ALIAS:
 	getElementsByTagName	= 1
 	findClass				= 2
@@ -2055,7 +2323,7 @@ OUTPUT:
 
 # First child element
 SV *
-first(HTML5::DOM::Node self)
+first(HTML5::DOM::Element self)
 ALIAS:
 	firstElementChild	= 1
 CODE:
@@ -2068,7 +2336,7 @@ OUTPUT:
 
 # First child node
 SV *
-firstNode(HTML5::DOM::Node self)
+firstNode(HTML5::DOM::Element self)
 ALIAS:
 	firstChild	= 1
 CODE:
@@ -2078,7 +2346,7 @@ OUTPUT:
 
 # Last child element
 SV *
-last(HTML5::DOM::Node self)
+last(HTML5::DOM::Element self)
 ALIAS:
 	lastElementChild	= 1
 CODE:
@@ -2091,7 +2359,7 @@ OUTPUT:
 
 # Last child node
 SV *
-lastNode(HTML5::DOM::Node self)
+lastNode(HTML5::DOM::Element self)
 ALIAS:
 	lastChild	= 1
 CODE:
@@ -2104,7 +2372,7 @@ OUTPUT:
 # attr("key", "value")		- set value for attribute "key" (return this)
 # attr({"key" => "value"})	- bulk set value for attribute "key" (return this)
 SV *
-attr(HTML5::DOM::Node self, SV *key = NULL, SV *value = NULL)
+attr(HTML5::DOM::Element self, SV *key = NULL, SV *value = NULL)
 CODE:
 	RETVAL = &PL_sv_undef;
 	
@@ -2193,7 +2461,7 @@ OUTPUT:
 
 # Remove attribute by key
 SV *
-removeAttr(HTML5::DOM::Node self, SV *key = NULL)
+removeAttr(HTML5::DOM::Element self, SV *key = NULL)
 CODE:
 	key = sv_stringify(key);
 	
@@ -2209,7 +2477,7 @@ OUTPUT:
 
 # Return collection with children elements
 SV *
-children(HTML5::DOM::Node self)
+children(HTML5::DOM::Element self)
 CODE:
 	myhtml_tree_node_t *child = myhtml_node_child(self);
 	AV *arr = newAV();
@@ -2226,7 +2494,7 @@ OUTPUT:
 
 # Return collection with children nodes
 SV *
-childrenNode(HTML5::DOM::Node self)
+childrenNode(HTML5::DOM::Element self)
 ALIAS:
 	childNodes	= 1
 CODE:
@@ -2239,6 +2507,72 @@ CODE:
 	}
 	
 	RETVAL = sv_bless(newRV_noinc((SV *) arr), gv_stashpv("HTML5::DOM::Collection", 0));
+OUTPUT:
+	RETVAL
+
+# Return default display property for tag
+SV *
+getDefaultBoxType(HTML5::DOM::Element self)
+CODE:
+	const char *ret = NULL;
+	switch (html5_dom_get_ua_display_prop(self)) {
+		case TAG_UA_STYLE_NONE:
+			ret = "none";
+		break;
+		case TAG_UA_STYLE_INLINE:
+			ret = "inline";
+		break;
+		case TAG_UA_STYLE_BLOCK:
+			ret = "block";
+		break;
+		case TAG_UA_STYLE_INLINE_BLOCK:
+			ret = "inline-block";
+		break;
+		case TAG_UA_STYLE_LIST_ITEM:
+			ret = "list-item";
+		break;
+		case TAG_UA_STYLE_TABLE:
+			ret = "table";
+		break;
+		case TAG_UA_STYLE_TABLE_CAPTION:
+			ret = "table-caption";
+		break;
+		case TAG_UA_STYLE_TABLE_CELL:
+			ret = "table-cell";
+		break;
+		case TAG_UA_STYLE_TABLE_COLUMN:
+			ret = "table-column";
+		break;
+		case TAG_UA_STYLE_TABLE_COLUMN_GROUP:
+			ret = "table-column-group";
+		break;
+		case TAG_UA_STYLE_TABLE_HEADER_GROUP:
+			ret = "table-header-group";
+		break;
+		case TAG_UA_STYLE_TABLE_FOOTER_GROUP:
+			ret = "table-footer-group";
+		break;
+		case TAG_UA_STYLE_TABLE_ROW:
+			ret = "table-row";
+		break;
+		case TAG_UA_STYLE_TABLE_ROW_GROUP:
+			ret = "table-row-group";
+		break;
+		case TAG_UA_STYLE_RUBY:
+			ret = "ruby";
+		break;
+		case TAG_UA_STYLE_RUBY_BASE:
+			ret = "ruby-base";
+		break;
+		case TAG_UA_STYLE_RUBY_TEXT:
+			ret = "ruby-text";
+		break;
+		case TAG_UA_STYLE_RUBY_TEXT_CONTAINER:
+			ret = "ruby-text-container";
+		break;
+	}
+	
+	RETVAL = ret ? newSVpv(ret, strlen(ret)) : &PL_sv_undef;
 OUTPUT:
 	RETVAL
 
