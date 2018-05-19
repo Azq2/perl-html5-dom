@@ -169,7 +169,16 @@ Return <body> node of current tree.
 
 Find one element node in tree using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
 
-Return node, or undef if not find.
+Return node, or C<undef> if not find.
+
+=over
+
+=item *
+
+C<$selector> - selector query as plain text or precompiled as L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector> or 
+L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector::Entry>.
+
+=back
 
  my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
  my $node = $tree->at('body > div.red');
@@ -186,6 +195,15 @@ Find all element nodes in tree using L<CSS Selectors Level 4|https://www.w3.org/
 
 Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
 
+=over
+
+=item *
+
+C<$selector> - selector query as plain text or precompiled as L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector> or 
+L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector::Entry>.
+
+=back
+
  my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
  my $collection = $tree->at('body > div.red, body > div.blue');
  print $collection->[0]->html; # <div class="red">red</div>
@@ -200,7 +218,7 @@ Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
 
 Find element node with specified id.
 
-Return L<HTML5::DOM::Node|/"HTML5::DOM::Node"> or undef.
+Return L<HTML5::DOM::Node|/"HTML5::DOM::Node"> or C<undef>.
 
  my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue" id="test">blue</div>')
  my $node = $tree->findId('test');
@@ -301,7 +319,7 @@ See L<"CONSTANTS"> for tag constants list.
  print "tag name: ".$tree->id2tag(4)."\n"; # tag name: a
  print "tag name: ".$tree->id2tag(HTML5::DOM::TAG_A)."\n"; # tag name: a
 
-Convert tag id to name. Return undef, if tag id not exists in tree.
+Convert tag id to name. Return C<undef>, if tag id not exists in tree.
 See L<"CONSTANTS"> for tag constants list. 
 
 =head3 namespace2id
@@ -317,7 +335,7 @@ See L<"CONSTANTS"> for namespace constants list.
  print "ns name: ".$tree->id2namespace(1)."\n"; # ns name: html
  print "ns name: ".$tree->id2namespace(HTML5::DOM::NS_HTML)."\n"; # ns name: html
 
-Convert namespace id to name. Return undef, if namespace id not exists.
+Convert namespace id to name. Return C<undef>, if namespace id not exists.
 See L<"CONSTANTS"> for namespace constants list. 
 
 =head3 wait
@@ -776,7 +794,7 @@ For L<HTML5::DOM::Element|/"HTML5::DOM::Element"> is similar to L<textContent|/t
 Represents the "rendered" text content of a node and its descendants. 
 Using default CSS "display" property for tags based on Firefox user-agent style. 
 
-Only works for elements, for other nodes return undef.
+Only works for elements, for other nodes return C<undef>.
 
  my $text = $node->innerText;
  my $text = $node->outerText; # alias
@@ -857,7 +875,7 @@ See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/HTMLEleme
 
 Represents the text content of a node and its descendants.
 
-Only works for elements, for other nodes return undef.
+Only works for elements, for other nodes return C<undef>.
 
  my $text = $node->text;
  my $text = $node->textContent; # alias
@@ -886,7 +904,7 @@ See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/Node/text
 
 =back
 
-=head nodeHtml
+=head3 nodeHtml
 
  my $html = $node->nodeHtml();
 
@@ -906,7 +924,7 @@ Serialize to html, without descendants and closing tag.
  my $node = $node->data($new_value); # alias
 
 Get or set value of node. Only works for non-element nodes, such as  L<HTML5::DOM::Element|/"HTML5::DOM::Text">,  L<HTML5::DOM::Element|/"HTML5::DOM::DocType">, 
-L<HTML5::DOM::Element|/"HTML5::DOM::Comment">. Return undef for other.
+L<HTML5::DOM::Element|/"HTML5::DOM::Comment">. Return C<undef> for other.
 
  my $tree = HTML5::DOM->new->parse('');
  my $comment = $tree->createComment("comment text");
@@ -933,7 +951,7 @@ Return true, if node has parent.
  my $node = $node->parent;
  my $node = $node->parentElement; # alias
 
-Return parent node. Return undef, if node detached.
+Return parent node. Return C<undef>, if node detached.
 
  my $tree = HTML5::DOM->new->parse('
     <div id="test"></div>
@@ -1166,11 +1184,50 @@ DOM node object for elements. Inherit all methods from L<HTML5::DOM::Node|/HTML5
 =head3 querySelector
 
  my $node = $node->at($selector);
+ my $node = $node->at($selector, $combinator);
  my $node = $node->querySelector($selector); # alias
+ my $node = $node->querySelector($selector, $combinator); # alias
 
 Find one element node in current node descendants using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
 
-Return node, or undef if not find.
+Return node, or C<undef> if not find.
+
+=over
+
+=item *
+
+C<$selector> - selector query as plain text or precompiled as L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector> or 
+L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector::Entry>.
+
+=item *
+
+C<$combinator> - custom selector combinator, applies to current node
+
+=over
+
+=item *
+
+C<E<gt>E<gt>> - descendant selector (default)
+
+=item *
+
+C<E<gt>> - child selector
+
+=item *
+
+C<+> - adjacent sibling selector
+
+=item *
+
+C<~> - general sibling selector
+
+=item *
+
+C<||> - column combinator
+
+=back
+
+=back
 
  my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
  my $node = $tree->body->at('body > div.red');
@@ -1181,11 +1238,50 @@ Return node, or undef if not find.
 =head3 querySelectorAll
 
  my $collection = $node->find($selector);
+ my $collection = $node->find($selector, $combinator);
  my $collection = $node->querySelectorAll($selector); # alias
+ my $collection = $node->querySelectorAll($selector, $combinator); # alias
 
 Find all element nodes in current node descendants using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
 
 Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+=over
+
+=item *
+
+C<$selector> - selector query as plain text or precompiled as L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector> or 
+L<HTML5::DOM::CSS::Selector|/HTML5::DOM::CSS::Selector::Entry>.
+
+=item *
+
+C<$combinator> - custom selector combinator, applies to current node
+
+=over
+
+=item *
+
+C<E<gt>E<gt>> - descendant selector (default)
+
+=item *
+
+C<E<gt>> - child selector
+
+=item *
+
+C<+> - adjacent sibling selector
+
+=item *
+
+C<~> - general sibling selector
+
+=item *
+
+C<||> - column combinator
+
+=back
+
+=back
 
  my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
  my $collection = $tree->body->at('body > div.red, body > div.blue');
@@ -1201,7 +1297,7 @@ Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
 
 Find element node with specified id in current node descendants.
 
-Return L<HTML5::DOM::Node|/"HTML5::DOM::Node"> or undef.
+Return L<HTML5::DOM::Node|/"HTML5::DOM::Node"> or C<undef>.
 
  my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue" id="test">blue</div>')
  my $node = $tree->body->findId('test');
