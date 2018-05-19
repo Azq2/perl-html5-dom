@@ -191,6 +191,21 @@ Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
  print $collection->[0]->html; # <div class="red">red</div>
  print $collection->[1]->html; # <div class="red">blue</div>
 
+=head3 findId
+
+=head3 getElementById
+
+ my $collection = $tree->findId($tag);
+ my $collection = $tree->getElementById($tag); # alias
+
+Find element node with specified id.
+
+Return L<HTML5::DOM::Node|/"HTML5::DOM::Node"> or undef.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue" id="test">blue</div>')
+ my $node = $tree->findId('test');
+ print $node->html; # <div class="blue" id="test">blue</div>
+
 =head3 findTag
 
 =head3 getElementsByTagName
@@ -858,7 +873,6 @@ See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/Node/text
 
 Removes all of its children and replaces them with a single text node with the given value.
 
- # parse fragment and replace child nodes with it
  my $node = $node->text($new_text);
  my $node = $node->textContent($new_text);
 
@@ -871,6 +885,15 @@ Example:
 See, for more info: L<https://developer.mozilla.org/en-US/docs/Web/API/Node/textContent>
 
 =back
+
+=head nodeHtml
+
+ my $html = $node->nodeHtml();
+
+Serialize to html, without descendants and closing tag.
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
+ print $tree->at('#test')->nodeHtml(); # <div id="test">
 
 =head3 nodeValue
 
@@ -1114,6 +1137,173 @@ Tests whether two nodes are the same, that is if they reference the same object.
  print $li->[0]->isSameNode($li->[0]); # 1
  print $li->[0]->isSameNode($li->[1]); # 0
  print $li->[0]->isSameNode($li->[2]); # 0
+
+=head3 wait
+
+ my $parser = HTML5::DOM->new({async => 1});
+ my $tree = $parser->parse($some_big_html_file);
+ # ...some your work...
+ $tree->body->wait; # wait before parsing for <body> is done
+
+Blocking wait for node parsing done. Only for async mode.
+
+=head3 parsed
+
+ my $parser = HTML5::DOM->new({async => 1});
+ my $tree = $parser->parse($some_big_html_file);
+ # ...some your work...
+ while (!$tree->body->parsed); # wait before parsing for <body> is done
+
+Non-blocking way for check if node parsing done. Only for async mode.
+
+
+=head1 HTML5::DOM::Element
+
+DOM node object for elements. Inherit all methods from L<HTML5::DOM::Node|/HTML5::DOM::Node>.
+
+=head3 at
+
+=head3 querySelector
+
+ my $node = $node->at($selector);
+ my $node = $node->querySelector($selector); # alias
+
+Find one element node in current node descendants using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
+
+Return node, or undef if not find.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
+ my $node = $tree->body->at('body > div.red');
+ print $node->html; # <div class="red">red</div>
+
+=head3 find
+
+=head3 querySelectorAll
+
+ my $collection = $node->find($selector);
+ my $collection = $node->querySelectorAll($selector); # alias
+
+Find all element nodes in current node descendants using L<CSS Selectors Level 4|https://www.w3.org/TR/selectors-4/>
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
+ my $collection = $tree->body->at('body > div.red, body > div.blue');
+ print $collection->[0]->html; # <div class="red">red</div>
+ print $collection->[1]->html; # <div class="red">blue</div>
+
+=head3 findId
+
+=head3 getElementById
+
+ my $node = $node->findId($tag);
+ my $node = $node->getElementById($tag); # alias
+
+Find element node with specified id in current node descendants.
+
+Return L<HTML5::DOM::Node|/"HTML5::DOM::Node"> or undef.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue" id="test">blue</div>')
+ my $node = $tree->body->findId('test');
+ print $node->html; # <div class="blue" id="test">blue</div>
+
+=head3 findTag
+
+=head3 getElementsByTagName
+
+ my $node = $node->findTag($tag);
+ my $node = $node->getElementsByTagName($tag); # alias
+
+Find all element nodes in current node descendants with specified tag name.
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new->parse('<div class="red">red</div><div class="blue">blue</div>')
+ my $collection = $tree->body->findTag('div');
+ print $collection->[0]->html; # <div class="red">red</div>
+ print $collection->[1]->html; # <div class="red">blue</div>
+
+=head3 findClass
+
+=head3 getElementsByClassName
+
+ my $collection = $node->findClass($class);
+ my $collection = $node->getElementsByClassName($class); # alias
+
+Find all element nodes in current node descendants with specified class name.
+This is more fast equivalent to [class~="value"] selector.
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new
+    ->parse('<div class="red color">red</div><div class="blue color">blue</div>');
+ my $collection = $tree->body->findClass('color');
+ print $collection->[0]->html; # <div class="red color">red</div>
+ print $collection->[1]->html; # <div class="red color">blue</div>
+
+=head3 findAttr
+
+=head3 getElementByAttribute
+ 
+ # Find all elements with attribute
+ my $collection = $node->findAttr($attribute);
+ my $collection = $node->getElementByAttribute($attribute); # alias
+ 
+ # Find all elements with attribute and mathcing value
+ my $collection = $node->findAttr($attribute, $value, $case = 0, $cmp = '=');
+ my $collection = $node->getElementByAttribute($attribute, $value, $case = 0, $cmp = '='); # alias
+
+Find all element nodes in tree with specified attribute and optional matching value.
+
+Return L<HTML5::DOM::Collection|/"HTML5::DOM::Collection">.
+
+ my $tree = HTML5::DOM->new
+    ->parse('<div class="red color">red</div><div class="blue color">blue</div>');
+ my $collection = $tree->body->findAttr('class', 'CoLoR', 1, '~');
+ print $collection->[0]->html; # <div class="red color">red</div>
+ print $collection->[1]->html; # <div class="red color">blue</div>
+ 
+CSS selector analogs:
+ 
+ # [$attribute=$value]
+ my $collection = $node->findAttr($attribute, $value, 0, '=');
+ 
+ # [$attribute=$value i]
+ my $collection = $node->findAttr($attribute, $value, 1, '=');
+ 
+ # [$attribute~=$value]
+ my $collection = $node->findAttr($attribute, $value, 0, '~');
+ 
+ # [$attribute|=$value]
+ my $collection = $node->findAttr($attribute, $value, 0, '|');
+ 
+ # [$attribute*=$value]
+ my $collection = $node->findAttr($attribute, $value, 0, '*');
+
+=head1 HTML5::DOM::Document
+
+DOM node object for document. Inherit all methods from L<HTML5::DOM::Element|/HTML5::DOM::Element>.
+
+
+=head1 HTML5::DOM::Fragment
+
+DOM node object for fragments. Inherit all methods from L<HTML5::DOM::Element|/HTML5::DOM::Element>.
+
+
+=head1 HTML5::DOM::Text
+
+DOM node object for text. Inherit all methods from L<HTML5::DOM::Node|/HTML5::DOM::Node>.
+
+
+=head1 HTML5::DOM::Comment
+
+DOM node object for comments. Inherit all methods from L<HTML5::DOM::Node|/HTML5::DOM::Node>.
+
+
+=head1 HTML5::DOM::DocType
+
+DOM node object for document type. Inherit all methods from L<HTML5::DOM::Node|/HTML5::DOM::Node>.
+
 
 =head1 PARSER OPTIONS
 
