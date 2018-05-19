@@ -110,9 +110,9 @@ Create new L<HTML5::DOM::Comment|/"HTML5::DOM::Comment"> with specified value.
 =head3 createTextNode
 
  # create new text node
- my $node = $tree->createTextNode("ololo ololo i am driver ufo >>>");
+ my $node = $tree->createTextNode("psh psh ololo i am driver of ufo >>>");
  
- print $node->html; # ololo ololo i am driver ufo &gt;&gt;&gt;
+ print $node->html; # psh psh ololo i am driver of ufo &gt;&gt;&gt;
 
 Create new L<HTML5::DOM::Text|/"HTML5::DOM::Text"> with specified value.
 
@@ -592,6 +592,77 @@ Return last children node
  ');
  my $ul = $tree->at('ul');
  print $ul->lastNode->html; # <!-- comment -->
+
+=head3 html
+
+=head3 innerHTML
+
+=head3 outerHTML
+
+=over
+
+=item *
+
+HTML serialization of the node's descendants. 
+
+ my $html = $node->html;
+ my $html = $node->outerHTML;
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
+ print $tree->html;                         # <div id="test">some <b>bold</b> test</div>
+ print $tree->createComment('test')->html;  # <!-- test -->
+ print $tree->createTextNode('test')->html; # test
+
+=item *
+
+HTML serialization of the node and its descendants.
+
+ # serialize descendants, without node
+ my $html = $node->innerHTML;
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
+ print $tree->html;                         # some <b>bold</b> test
+ print $tree->createComment('test')->html;  # <!-- test -->
+ print $tree->createTextNode('test')->html; # test
+
+=item *
+
+Removes all of the element's descendants and replaces them with nodes constructed by parsing the HTML given in the string B<$new_html>.
+
+ # parse fragment and replace child nodes with it
+ my $html = $node->html($new_html);
+ my $html = $node->innerHTML($new_html);
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
+ print $tree->at('#test')->html('<i>italic</i>');
+ print $tree->body->innerHTML;  # <div id="test"><i>italic</i></div>
+
+=item *
+
+Replaces the element and all of its descendants with a new DOM tree constructed by parsing the specified B<$new_html>.
+
+ # parse fragment and node in parent node childs with it
+ my $html = $node->outerHTML($new_html);
+
+Example:
+
+ my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
+ print $tree->at('#test')->outerHTML('<i>italic</i>');
+ print $tree->body->innerHTML;  # <i>italic</i>
+
+=back
+
+See, for more info:
+
+L<https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML>
+
+L<https://developer.mozilla.org/en-US/docs/Web/API/Element/outerHTML>
 
 =head3 isConnected
 

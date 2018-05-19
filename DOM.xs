@@ -1712,8 +1712,8 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Node::text()			- Serialize tree to text
-# Node::html(text)		- Ignore
+# Node::html()			- Serialize text/comment node to html
+# Node::html(text)		- Same as Node::nodeValue(text)
 # Element::html(text)	- Remove all children nodes and add parsed fragment, return self
 SV *
 html(HTML5::DOM::Node self, SV *text = NULL)
