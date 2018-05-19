@@ -1665,6 +1665,82 @@ DOM node object for comments. Inherit all methods from [HTML5::DOM::Node](#html5
 
 DOM node object for document type. Inherit all methods from [HTML5::DOM::Node](#html5domnode).
 
+# HTML5::DOM::Collection
+
+CSS Parser object
+
+### new
+
+```perl
+my $collection = HTML5::DOM::Collection->new($nodes);
+```
+
+Creates new collection from `$nodes` (reference to array with [HTML5::DOM::Node](#html5domnode)).
+
+### add
+
+```perl
+my $collection = $collection->add($node);
+```
+
+Add new item to collection.
+
+### length
+
+```perl
+my $length = $collection->length;
+```
+
+Items count in collection.
+
+### first
+
+```perl
+my $node = $collection->first;
+```
+
+First item in collection.
+
+### last
+
+```perl
+my $node = $collection->last;
+```
+
+Last item in collection.
+
+### item
+
+```perl
+my $node = $collection->item($index);
+```
+
+Get item by `$index` in collection.
+
+### array
+
+```perl
+my $node = $collection->array();
+```
+
+Get collection items as array.
+
+### html
+
+```perl
+my $html = $collection->html;
+```
+
+Concat outerHTML from all items.
+
+### text
+
+```perl
+my $text = $collection->text;
+```
+
+Concat textContent from all items.
+
 # HTML5::DOM::CSS
 
 CSS Parser object
