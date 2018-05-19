@@ -295,7 +295,7 @@ static void html5_dom_recursive_node_inner_text(myhtml_tree_node_t *node, html5_
 		
 		bool is_empty = true;
 		for (size_t i = 0; i < text_len; ++i) {
-			// skip multubyte chars
+			// skip multibyte chars
 			int utf_len = utf8_char_size(text[i]);
 			if (utf_len > 1) {
 				mycore_string_append(&state->value, &text[i], utf_len);
@@ -1306,7 +1306,21 @@ CODE:
 	myhtml_tag_id_t tag_id = html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, true);
 	
 	// create new node
-	RETVAL = node_to_sv(myhtml_node_create(self->tree, tag_id, ns));
+	myhtml_tree_node_t *node = myhtml_node_create(self->tree, tag_id, ns);
+	
+	// if void - mark self-closed
+	if (myhtml_node_is_void_element(node)) {
+		if (!node->token) {
+			node->token = myhtml_token_node_create(node->tree->token, self->tree->mcasync_rules_token_id);
+			if (!node->token) {
+				myhtml_tree_node_delete(node);
+				sub_croak(cv, "myhtml_token_node_create failed");
+			}
+		}
+		node->token->type |= MyHTML_TOKEN_TYPE_CLOSE_SELF | MyHTML_TOKEN_TYPE_DONE;
+	}
+	
+	RETVAL = node_to_sv(node);
 OUTPUT:
 	RETVAL
 
@@ -1805,9 +1819,19 @@ ALIAS:
 	data			= 4
 	outerText		= 5
 CODE:
+	static const char names[][16] = {
+		"text", "nodeValue", "innerText", "textContent", "data", "outerText"
+	};
+	
 	myhtml_tree_t *tree = self->tree;
 	if (!node_is_element(self)) {
-		if (text) { // set node value
+		if (ix == 2 || ix == 3 || ix == 5) {
+			if (text) {
+				sub_croak(cv, "%s unsupported in %s", names[ix], get_node_class(self));
+			} else {
+				RETVAL = &PL_sv_undef;
+			}
+		} else if (text) { // set node value
 			text = sv_stringify(text);
 			STRLEN text_len;
 			const char *text_str = SvPV_const(text, text_len);
@@ -1819,10 +1843,14 @@ CODE:
 			const char *text = myhtml_node_text(self, &text_len);
 			RETVAL = newSVpv(text ? text : "", text_len);
 		}
-	} else if (ix == 1 || ix == 4) { // nodeValue can't used for elements
-		RETVAL = &PL_sv_undef;
 	} else {
-		if (text) { // remove all childrens and add text node
+		if (ix == 1 || ix == 4) {
+			if (text) {
+				sub_croak(cv, "%s unsupported in %s", names[ix], get_node_class(self));
+			} else {
+				RETVAL = &PL_sv_undef;
+			}
+		} else if (text) { // remove all childrens and add text node
 			text = sv_stringify(text);
 			STRLEN text_len;
 			const char *text_str = SvPV_const(text, text_len);
@@ -1846,14 +1874,61 @@ CODE:
 				self->tree->node_head = NULL;
 			}
 			
-			// add text node
-			myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
-			myhtml_node_text_set(text_node, text_str, text_len, MyENCODING_DEFAULT);
-			if (ix == 5) { // outerText
-				myhtml_tree_node_insert_before(self, text_node);
-			} else { // innerText
+			// innerText, outerText
+			if (ix == 2 || ix == 5) {
+				size_t last_pos = 0;
+				for (size_t i = 0; i < text_len; ++i) {
+					bool is_end = (i >= text_len - 1);
+					bool is_new_line = (text_str[i] == '\n' || text_str[i] == '\r');
+					if (is_end || is_new_line) {
+						if (is_end && !is_new_line)
+							++i;
+						
+						// insert new text node
+						if (i - last_pos) {
+							myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
+							myhtml_node_text_set(text_node, &text_str[last_pos], i - last_pos, MyENCODING_DEFAULT);
+							if (ix == 5) { // outerText
+								myhtml_tree_node_insert_before(self, text_node);
+							} else { // innerText
+								myhtml_tree_node_add_child(self, text_node);
+							}
+						}
+						
+						// insert new br
+						if (is_new_line) {
+							myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG_BR, myhtml_node_namespace(self));
+							if (!text_node->token) {
+								text_node->token = myhtml_token_node_create(self->tree->token, self->tree->mcasync_rules_token_id);
+								if (!text_node->token) {
+									myhtml_tree_node_delete(text_node);
+									sub_croak(cv, "myhtml_token_node_create failed");
+								}
+								text_node->token->type |= MyHTML_TOKEN_TYPE_CLOSE_SELF | MyHTML_TOKEN_TYPE_DONE;
+							}
+							
+							if (ix == 5) { // outerText
+								myhtml_tree_node_insert_before(self, text_node);
+							} else { // innerText
+								myhtml_tree_node_add_child(self, text_node);
+							}
+						}
+						
+						if (!is_end) {
+							if (text_str[i] == '\r' && text_str[i + 1] == '\n')
+								++i;
+							last_pos = i + 1;
+						}
+					}
+				}
+			}
+			// text, textContent
+			else {
+				myhtml_tree_node_t *text_node = myhtml_node_create(self->tree, MyHTML_TAG__TEXT, myhtml_node_namespace(self));
+				myhtml_node_text_set(text_node, text_str, text_len, MyENCODING_DEFAULT);
 				myhtml_tree_node_add_child(self, text_node);
 			}
+			
 			RETVAL = SvREFCNT_inc(ST(0));
 			
 			if (ix == 5) {
@@ -1861,16 +1936,26 @@ CODE:
 				myhtml_tree_node_remove(self);
 			}
 		} else { // recursive serialize node to text
-			if (ix == 2 || ix == 5) { // innerText, outerText
+			// innerText, outerText
+			if (ix == 2 || ix == 5) {
 				html5_dom_inner_text_state_t state = {0};
 				state.last_br = true;
 				state.new_line = true;
 				
 				mycore_string_init(self->tree->mchar, self->tree->mchar_node_id, &state.value, 1);
-				html5_dom_recursive_node_inner_text(self, &state);
+				
+				myhtml_tree_node_t *next = myhtml_node_child(self);
+				while (next) {
+					html5_dom_recursive_node_inner_text(next, &state);
+					next = myhtml_node_next(next);
+				}
+				html5_dom_rtrim_mystring(&state.value, ' ');
+				
 				RETVAL = newSVpv(state.value.data ? state.value.data : "", state.value.length);
 				mycore_string_destroy(&state.value, 0);
-			} else { // text, textContent
+			}
+			// text, textContent
+			else {
 				RETVAL = newSVpv("", 0);
 				html5_dom_recursive_node_text(self, RETVAL);
 			}

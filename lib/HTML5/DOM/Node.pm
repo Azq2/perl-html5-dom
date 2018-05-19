@@ -9,7 +9,7 @@ use overload
 	'=='		=> sub { defined $_[1] && $_[0]->isEqualNode($_[1]) }, 
 	'!='		=> sub { !defined $_[1] || !$_[0]->isEqualNode($_[1]) }, 
 	'bool'		=> sub { 1 }, 
-	fallback	=> 0;
+	fallback	=> 1;
 
 # https://developer.mozilla.org/pl/docs/Web/API/Element/nodeType
 use constant {
