@@ -1335,6 +1335,56 @@ Non-blocking way for check if node parsing done. Only for async mode.
 
 DOM node object for elements. Inherit all methods from [HTML5::DOM::Node](#html5domnode).
 
+### children
+
+```perl
+my $collection = $node->children;
+```
+
+Returns all child elements of current node in [HTML5::DOM::Collection](#html5domcollection).
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+       <ul>
+               <li>Perl</li>
+               <!-- comment -->
+               <li>PHP</li>
+               <li>C++</li>
+       </ul>
+');
+my $collection = $tree->at('ul')->children;
+print $collection->[0]->html; # <li>Perl</li>
+print $collection->[1]->html; # <li>PHP</li>
+print $collection->[2]->html; # <li>C++</li>
+```
+
+### childrenNode
+
+### childNodes
+
+```perl
+my $collection = $node->childrenNode;
+my $collection = $node->childNodes; # alias
+```
+
+Returns all child nodes of current node in [HTML5::DOM::Collection](#html5domcollection).
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+       <ul>
+               <li>Perl</li>
+               <!-- comment -->
+               <li>PHP</li>
+               <li>C++</li>
+       </ul>
+');
+my $collection = $tree->at('ul')->childrenNode;
+print $collection->[0]->html; # <li>Perl</li>
+print $collection->[1]->html; # <!-- comment -->
+print $collection->[2]->html; # <li>PHP</li>
+print $collection->[3]->html; # <li>C++</li>
+```
+
 ### at
 
 ### querySelector
@@ -1501,6 +1551,23 @@ my $collection = $node->findAttr($attribute, $value, 0, '|');
 
 # [$attribute*=$value]
 my $collection = $node->findAttr($attribute, $value, 0, '*');
+```
+
+### getDefaultBoxType
+
+```perl
+my $display = $node->getDefaultBoxType;
+```
+
+Get default CSS "display" property for tag (useful for functions like a &lt;innerText|/innerText>).
+
+```perl
+my $tree = HTML5::DOM->new
+   ->parse('<div class="red color">red</div><script>alert()</script><b>bbb</b>');
+print $tree->at('div')->getDefaultBoxType();           # block
+print $tree->at('script')->getDefaultBoxType();        # none
+print $tree->at('v')->getDefaultBoxType();                     # inline
+
 ```
 
 # HTML5::DOM::Document
