@@ -1608,7 +1608,6 @@ my $tree = HTML5::DOM->new
 my $collection = $tree->body->findAttr('class', 'CoLoR', 1, '~');
 print $collection->[0]->html; # <div class="red color">red</div>
 print $collection->[1]->html; # <div class="red color">blue</div>
-
 ```
 
 CSS selector analogs:
@@ -1643,8 +1642,7 @@ my $tree = HTML5::DOM->new
    ->parse('<div class="red color">red</div><script>alert()</script><b>bbb</b>');
 print $tree->at('div')->getDefaultBoxType();       # block
 print $tree->at('script')->getDefaultBoxType();    # none
-print $tree->at('v')->getDefaultBoxType();         # inline
-
+print $tree->at('b')->getDefaultBoxType();         # inline
 ```
 
 # HTML5::DOM::Document
@@ -1666,6 +1664,138 @@ DOM node object for comments. Inherit all methods from [HTML5::DOM::Node](#html5
 # HTML5::DOM::DocType
 
 DOM node object for document type. Inherit all methods from [HTML5::DOM::Node](#html5domnode).
+
+# HTML5::DOM::CSS
+
+CSS Parser object
+
+### new
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+```
+
+Create new css parser object.
+
+### parseSelector
+
+```perl
+my $selector = HTML5::DOM::CSS->parseSelector($selector_text);
+```
+
+Parse `$selector_text` and return [HTML5::DOM::CSS::Selector](#html5domcssselector).
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+```
+
+# HTML5::DOM::CSS::Selector
+
+CSS Selector object (precompiled selector)
+
+### new
+
+```perl
+my $selector = HTML5::DOM::CSS::Selector->new($selector_text);
+```
+
+Parse `$selector_text` and create new css selector object. 
+If your need parse many selectors, more efficient way using
+single instance of parser [HTML5::DOM::CSS](#html5domcss) and 
+[parseSelector](#parseselector) method.
+
+### text
+
+```perl
+my $selector_text = $selector->text;
+```
+
+Serialize selector to text.
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+print $selector->text."\n"; # body div.red, body span.blue
+```
+
+### length
+
+```perl
+my $length = $selector->length;
+```
+
+Get selector entries count (selectors separated by "," combinator)
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+print $selector->length."\n"; # 2
+```
+
+### entry
+
+```perl
+my $entry = $selector->entry($index);
+```
+
+Get selector entry by `$index` end return [HTML5::DOM::CSS::Selector::Entry](#html5domcssselectorentry).
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+print $selector->entry(0)->text."\n"; # body div.red
+print $selector->entry(1)->text."\n"; # body span.blue
+```
+
+# HTML5::DOM::CSS::Selector::Entry
+
+CSS selector entry object (precompiled selector)
+
+### text
+
+```perl
+my $selector_text = $entry->text;
+```
+
+Serialize entry to text.
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+my $entry = $selector->entry(0);
+print $entry->text."\n"; # body div.red
+```
+
+### specificity
+
+```perl
+my $specificity = $entry->specificity;
+```
+
+Get specificity in hash `{a, b, c}`
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+my $entry = $selector->entry(0);
+print Dumper($entry->specificity); # {b => 0, a => 1, c => 2}
+```
+
+### specificityArray
+
+```perl
+my $specificity = $entry->specificityArray;
+```
+
+Get specificity in array `[b, a, c]` (ordered by weight)
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('body div.red, body span.blue');
+my $entry = $selector->entry(0);
+print Dumper($entry->specificityArray); # [0, 1, 2]
+```
 
 # PARSER OPTIONS
 

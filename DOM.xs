@@ -2685,7 +2685,7 @@ OUTPUT:
 #################################################################
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::CSS
 HTML5::DOM::CSS
-new(...)
+new()
 CODE:
 	DOM_GC_TRACE("DOM::CSS::new");
 	mystatus_t status;
