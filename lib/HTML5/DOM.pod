@@ -50,7 +50,7 @@ Creates new parser object with options. See L<"PARSER OPTIONS"> for details.
      scripts     => 0, 
  });
 
-Parse html string and return L<HTML::DOM::Tree|/"HTML::DOM::Tree"> object.
+Parse html string and return L<HTML5::DOM::Tree|/"HTML5::DOM::Tree"> object.
 
 =head3 parseChunkStart
 
@@ -80,7 +80,7 @@ Parse chunk of html stream.
  # end parsing and get tree
  my $tree = $parser->parseChunkEnd();
 
-Completes chunked parsing and return L<HTML::DOM::Tree|/"HTML::DOM::Tree"> object.
+Completes chunked parsing and return L<HTML5::DOM::Tree|/"HTML5::DOM::Tree"> object.
 
 
 

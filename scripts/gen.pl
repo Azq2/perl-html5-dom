@@ -6,9 +6,29 @@ use File::Slurp qw|read_file write_file|;
 use File::Basename qw|dirname|;
 use POSIX;
 
+genReadmeMd();
 genTagsDisplayProp();
 genErrorCodes();
 getConstants();
+
+sub genReadmeMd {
+	use Pod::Markdown;
+	my $pod = read_file(dirname(__FILE__)."/../lib/HTML5/DOM.pod");
+	my $markdown;
+	my $parser = Pod::Markdown->new;
+	$parser->output_string(\$markdown);
+	$parser->parse_string_document($pod);
+	
+	my $fix = sub {
+		my $value = shift;
+		$value =~ s/-//g;
+		return $value;
+	};
+	
+	$markdown =~ s/(\(#[\w\d_-]+\))/$fix->($1)/ge;
+	
+	write_file(dirname(__FILE__)."/../README.md", $markdown);
+}
 
 sub genTagsDisplayProp {
 	my $text = read_file(dirname(__FILE__).'/tags.txt');
