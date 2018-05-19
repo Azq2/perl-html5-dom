@@ -38,7 +38,7 @@ my $parser = HTML5::DOM->new({
 });
 ```
 
-Creates new parser object with options. See ["PARSER OPTIONS"](#parseroptions) for details. 
+Creates new parser object with options. See ["PARSER OPTIONS"](#parser-options) for details. 
 
 ### parse
 
@@ -70,7 +70,7 @@ $parser->parseChunkStart({
 });
 ```
 
-Init chunked parsing. See ["PARSER OPTIONS"](#parseroptions) for details. 
+Init chunked parsing. See ["PARSER OPTIONS"](#parser-options) for details. 
 
 ### parseChunk
 
@@ -152,7 +152,7 @@ my $node = $tree->parseFragment("some <b>bold</b> and <i>italic</i> text", "div"
 print $node->html; # some <b>bold</b> and <i>italic</i> text
 ```
 
-See ["PARSER OPTIONS"](#parseroptions) for details. 
+See ["PARSER OPTIONS"](#parser-options) for details. 
 
 ### document
 

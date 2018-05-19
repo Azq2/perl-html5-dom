@@ -25,7 +25,7 @@ sub genReadmeMd {
 		return $value;
 	};
 	
-	$markdown =~ s/(\(#[\w\d_-]+\))/$fix->($1)/ge;
+	$markdown =~ s/(\(#html5-dom[\w\d_-]*\))/$fix->($1)/ge;
 	
 	write_file(dirname(__FILE__)."/../README.md", $markdown);
 }
