@@ -10,7 +10,7 @@ L<HTML5::DOM|https://metacpan.org/pod/HTML5::DOM> - Super fast html5 DOM library
 
 =head1 DESCRIPTION
 
-L<HTML5::DOM|https://metacpan.org/pod/HTML5::DOM> is a fast HTML5 parser and DOM manipulatin library with CSS4 selector, fully conformant with the HTML5 specification.
+L<HTML5::DOM|https://metacpan.org/pod/HTML5::DOM> is a fast HTML5 parser and DOM manipulatin library with CSS4 selectors, fully conformant with the HTML5 specification.
 
 It based on  L<https://github.com/lexborisov/Modest> as selector engine and L<https://github.com/lexborisov/myhtml> as HTML5 parser. 
 
@@ -25,16 +25,16 @@ HTML5 parser object.
  
  # override some options, if you need
  my $parser = HTML5::DOM->new({
-    threads             	=> 2,
-    async               	=> 0, 
-    ignore_whitespace   	=> 0, 
-    ignore_doctype      	=> 0, 
-    scripts             	=> 0, 
-    encoding            	=> "auto", 
-    default_encoding    	=> "UTF-8", 
-    encoding_use_meta   	=> 1, 
-    encoding_use_bom    	=> 1, 
-    encoding_prescan_limit	=> 1024
+    threads                 => 2,
+    async                   => 0, 
+    ignore_whitespace       => 0, 
+    ignore_doctype          => 0, 
+    scripts                 => 0, 
+    encoding                => "auto", 
+    default_encoding        => "UTF-8", 
+    encoding_use_meta       => 1, 
+    encoding_use_bom        => 1, 
+    encoding_prescan_limit  => 1024
  });
 
 Creates new parser object with options. See L<"PARSER OPTIONS"> for details. 
@@ -119,10 +119,35 @@ Create new L<HTML5::DOM::Text|/"HTML5::DOM::Text"> with specified value.
 
 =head3 parseFragment
 
- my $fragment = $tree->parseFragment($html, $context = 'div', $context_ns = 'html', $options = {});
+ my $fragment = $tree->parseFragment($html);
+ my $fragment = $tree->parseFragment($html, $context);
+ my $fragment = $tree->parseFragment($html, $context, $context_ns);
+ my $fragment = $tree->parseFragment($html, $context, $context_ns, $options);
 
 Parse fragment html and create new L<HTML5::DOM::Fragment|/"HTML5::DOM::Fragment">.
 For more details about fragments: L<https://html.spec.whatwg.org/multipage/parsing.html#parsing-html-fragments>
+
+=over
+
+=item *
+
+C<$html> - html fragment string
+
+=item *
+
+C<$context> - context tag name, default C<div>
+
+=item *
+
+C<$context_ns> - context tag namespace, default C<html>
+
+=item *
+
+C<$options> - parser options
+
+See L<"PARSER OPTIONS"> for details. 
+
+=back
 
  # simple create new fragment
  my $node = $tree->parseFragment("some <b>bold</b> and <i>italic</i> text");
@@ -134,8 +159,6 @@ For more details about fragments: L<https://html.spec.whatwg.org/multipage/parsi
  });
  
  print $node->html; # some <b>bold</b> and <i>italic</i> text
-
-See L<"PARSER OPTIONS"> for details. 
 
 =head3 document
 
@@ -1657,6 +1680,31 @@ Serialize selector to text.
  my $selector = $css->parseSelector('body div.red, body span.blue');
  print $selector->text."\n"; # body div.red, body span.blue
 
+=head3 ast
+
+ my $selector_text = $entry->ast;
+
+Serialize selector to very simple AST format.
+
+ my $css = HTML5::DOM::CSS->new;
+ my $selector = $css->parseSelector('div > .red');
+ print Dumper($selector->ast);
+ 
+ # $VAR1 = [[
+ #     {
+ #         'value' => 'div',
+ #         'type' => 'tag'
+ #     },
+ #     {
+ #         'type'  => 'combinator',
+ #         'value' => 'child'
+ #     },
+ #     {
+ #         'type' => 'class',
+ #         'value' => 'red'
+ #     }
+ # ]];
+
 =head3 length
 
  my $length = $selector->length;
@@ -1693,6 +1741,32 @@ Serialize entry to text.
  my $selector = $css->parseSelector('body div.red, body span.blue');
  my $entry = $selector->entry(0);
  print $entry->text."\n"; # body div.red
+
+=head3 ast
+
+ my $selector_text = $entry->ast;
+
+Serialize entry to very simple AST format.
+
+ my $css = HTML5::DOM::CSS->new;
+ my $selector = $css->parseSelector('div > .red');
+ my $entry = $selector->entry(0);
+ print Dumper($entry->ast);
+ 
+ # $VAR1 = [
+ #     {
+ #         'value' => 'div',
+ #         'type' => 'tag'
+ #     },
+ #     {
+ #         'type'  => 'combinator',
+ #         'value' => 'child'
+ #     },
+ #     {
+ #         'type' => 'class',
+ #         'value' => 'red'
+ #     }
+ # ];
 
 =head3 specificity
 

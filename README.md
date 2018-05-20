@@ -10,7 +10,7 @@
 
 # DESCRIPTION
 
-[HTML5::DOM](https://metacpan.org/pod/HTML5::DOM) is a fast HTML5 parser and DOM manipulatin library with CSS4 selector, fully conformant with the HTML5 specification.
+[HTML5::DOM](https://metacpan.org/pod/HTML5::DOM) is a fast HTML5 parser and DOM manipulatin library with CSS4 selectors, fully conformant with the HTML5 specification.
 
 It based on  [https://github.com/lexborisov/Modest](https://github.com/lexborisov/Modest) as selector engine and [https://github.com/lexborisov/myhtml](https://github.com/lexborisov/myhtml) as HTML5 parser. 
 
@@ -26,16 +26,16 @@ my $parser = HTML5::DOM->new;
 
 # override some options, if you need
 my $parser = HTML5::DOM->new({
-   threads                     => 2,
-   async                       => 0, 
-   ignore_whitespace           => 0, 
-   ignore_doctype              => 0, 
-   scripts                     => 0, 
-   encoding                    => "auto", 
-   default_encoding            => "UTF-8", 
-   encoding_use_meta           => 1, 
-   encoding_use_bom            => 1, 
-   encoding_prescan_limit      => 1024
+   threads                 => 2,
+   async                   => 0, 
+   ignore_whitespace       => 0, 
+   ignore_doctype          => 0, 
+   scripts                 => 0, 
+   encoding                => "auto", 
+   default_encoding        => "UTF-8", 
+   encoding_use_meta       => 1, 
+   encoding_use_bom        => 1, 
+   encoding_prescan_limit  => 1024
 });
 ```
 
@@ -134,11 +134,21 @@ Create new [HTML5::DOM::Text](#html5domtext) with specified value.
 ### parseFragment
 
 ```perl
-my $fragment = $tree->parseFragment($html, $context = 'div', $context_ns = 'html', $options = {});
+my $fragment = $tree->parseFragment($html);
+my $fragment = $tree->parseFragment($html, $context);
+my $fragment = $tree->parseFragment($html, $context, $context_ns);
+my $fragment = $tree->parseFragment($html, $context, $context_ns, $options);
 ```
 
 Parse fragment html and create new [HTML5::DOM::Fragment](#html5domfragment).
 For more details about fragments: [https://html.spec.whatwg.org/multipage/parsing.html#parsing-html-fragments](https://html.spec.whatwg.org/multipage/parsing.html#parsing-html-fragments)
+
+- `$html` - html fragment string
+- `$context` - context tag name, default `div`
+- `$context_ns` - context tag namespace, default `html`
+- `$options` - parser options
+
+    See ["PARSER OPTIONS"](#parser-options) for details. 
 
 ```perl
 # simple create new fragment
@@ -152,8 +162,6 @@ my $node = $tree->parseFragment("some <b>bold</b> and <i>italic</i> text", "div"
 
 print $node->html; # some <b>bold</b> and <i>italic</i> text
 ```
-
-See ["PARSER OPTIONS"](#parser-options) for details. 
 
 ### document
 
@@ -1833,6 +1841,35 @@ my $selector = $css->parseSelector('body div.red, body span.blue');
 print $selector->text."\n"; # body div.red, body span.blue
 ```
 
+### ast
+
+```perl
+my $selector_text = $entry->ast;
+```
+
+Serialize selector to very simple AST format.
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('div > .red');
+print Dumper($selector->ast);
+
+# $VAR1 = [[
+#     {
+#         'value' => 'div',
+#         'type' => 'tag'
+#     },
+#     {
+#         'type'  => 'combinator',
+#         'value' => 'child'
+#     },
+#     {
+#         'type' => 'class',
+#         'value' => 'red'
+#     }
+# ]];
+```
+
 ### length
 
 ```perl
@@ -1879,6 +1916,36 @@ my $css = HTML5::DOM::CSS->new;
 my $selector = $css->parseSelector('body div.red, body span.blue');
 my $entry = $selector->entry(0);
 print $entry->text."\n"; # body div.red
+```
+
+### ast
+
+```perl
+my $selector_text = $entry->ast;
+```
+
+Serialize entry to very simple AST format.
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('div > .red');
+my $entry = $selector->entry(0);
+print Dumper($entry->ast);
+
+# $VAR1 = [
+#     {
+#         'value' => 'div',
+#         'type' => 'tag'
+#     },
+#     {
+#         'type'  => 'combinator',
+#         'value' => 'child'
+#     },
+#     {
+#         'type' => 'class',
+#         'value' => 'red'
+#     }
+# ];
 ```
 
 ### specificity
