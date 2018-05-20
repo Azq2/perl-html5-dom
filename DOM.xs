@@ -87,6 +87,7 @@ typedef struct {
 	myencoding_t default_encoding;
 	bool encoding_use_meta;
 	bool encoding_use_bom;
+	long encoding_prescan_limit;
 } html5_dom_options_t;
 
 typedef struct {
@@ -1041,15 +1042,16 @@ myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencodi
  * ignore_doctype			= 1
  * */
 void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
-	opts->threads				= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
-	opts->async					= hv_get_int_value(options, "async", 5, extend ? extend->async : 0) > 0;
-	opts->ignore_whitespace		= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
-	opts->ignore_doctype		= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
-	opts->scripts				= hv_get_int_value(options, "scripts", 7, extend ? extend->scripts : 0) > 0;
-	opts->encoding				= hv_get_encoding_value(options, "encoding", 8, extend ? extend->encoding : MyENCODING_AUTO);
-	opts->default_encoding		= hv_get_encoding_value(options, "default_encoding", 16, extend ? extend->default_encoding : MyENCODING_DEFAULT);
-	opts->encoding_use_meta		= hv_get_int_value(options, "encoding_use_meta", 17, extend ? extend->encoding_use_meta : 1) > 0;
-	opts->encoding_use_bom		= hv_get_int_value(options, "encoding_use_bom", 16, extend ? extend->encoding_use_bom : 1) > 0;
+	opts->threads					= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
+	opts->async						= hv_get_int_value(options, "async", 5, extend ? extend->async : 0) > 0;
+	opts->ignore_whitespace			= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
+	opts->ignore_doctype			= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
+	opts->scripts					= hv_get_int_value(options, "scripts", 7, extend ? extend->scripts : 0) > 0;
+	opts->encoding					= hv_get_encoding_value(options, "encoding", 8, extend ? extend->encoding : MyENCODING_AUTO);
+	opts->default_encoding			= hv_get_encoding_value(options, "default_encoding", 16, extend ? extend->default_encoding : MyENCODING_DEFAULT);
+	opts->encoding_use_meta			= hv_get_int_value(options, "encoding_use_meta", 17, extend ? extend->encoding_use_meta : 1) > 0;
+	opts->encoding_use_bom			= hv_get_int_value(options, "encoding_use_bom", 16, extend ? extend->encoding_use_bom : 1) > 0;
+	opts->encoding_prescan_limit	= hv_get_int_value(options, "encoding_prescan_limit", 22, extend ? extend->encoding_prescan_limit : 1024);
 }
 
 void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
@@ -1057,6 +1059,10 @@ void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
 		sub_croak(cv, "invalid encoding value");
 	if (opts->default_encoding == MyENCODING_NOT_DETERMINED || opts->default_encoding == MyENCODING_AUTO)
 		sub_croak(cv, "invalid default_encoding value");
+	if (opts->threads < 0)
+		sub_croak(cv, "invalid threads count");
+	if (opts->encoding_prescan_limit < 0)
+		sub_croak(cv, "invalid encoding_prescan_limit value");
 }
 
 myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **html_str, size_t *html_length) {
@@ -1066,8 +1072,10 @@ myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **htm
 		encoding = MyENCODING_NOT_DETERMINED;
 		if (*html_length) {
 			// Search encoding in meta-tags
-			if (opts->encoding_use_meta)
-				encoding = myencoding_prescan_stream_to_determine_encoding(*html_str, *html_length);
+			if (opts->encoding_use_meta) {
+				size_t size = opts->encoding_prescan_limit < *html_length ? opts->encoding_prescan_limit : *html_length;
+				encoding = myencoding_prescan_stream_to_determine_encoding(*html_str, size);
+			}
 			
 			if (encoding == MyENCODING_NOT_DETERMINED) {
 				// Check BOM
@@ -2873,41 +2881,102 @@ OUTPUT:
 	RETVAL
 
 int
-detect(SV *text, size_t max_len = 0)
+detect(SV *text, long max_len = 0)
 ALIAS:
 	detectByPrescanStream	= 1
 	detectRussian			= 2
 	detectUnicode			= 3
 	detectBom				= 4
+	detectByCharset			= 5
 CODE:
 	text = sv_stringify(text);
 	
 	STRLEN text_len;
 	const char *text_str = SvPV_const(text, text_len);
 	
-	if (max_len && max_len < text_len)
+	if (max_len > 0 && max_len < text_len)
 		text_len = max_len;
 	
 	myencoding_t encoding;
 	
 	switch (ix) {
 		case 0:
-			myencoding_detect(text_str, text_len, &encoding);
+			if (!myencoding_detect(text_str, text_len, &encoding))
+				encoding = MyENCODING_NOT_DETERMINED;
 		break;
 		case 1:
 			encoding = myencoding_prescan_stream_to_determine_encoding(text_str, text_len);
 		break;
 		case 2:
-			encoding = myencoding_detect_russian(text_str, text_len, &encoding);
+			if (!myencoding_detect_russian(text_str, text_len, &encoding))
+				encoding = MyENCODING_NOT_DETERMINED;
 		break;
 		case 3:
-			encoding = myencoding_detect_unicode(text_str, text_len, &encoding);
+			if (!myencoding_detect_unicode(text_str, text_len, &encoding))
+				encoding = MyENCODING_NOT_DETERMINED;
 		break;
 		case 4:
-			encoding = myencoding_detect_bom(text_str, text_len, &encoding);
+			if (!myencoding_detect_bom(text_str, text_len, &encoding))
+				encoding = MyENCODING_NOT_DETERMINED;
+		break;
+		case 5:
+			if (!myencoding_extracting_character_encoding_from_charset(text_str, text_len, &encoding))
+				encoding = MyENCODING_NOT_DETERMINED;
 		break;
 	}
 	
 	RETVAL = encoding;
 OUTPUT:
 	RETVAL
+
+void
+detectBomAndCut(SV *text, long max_len = 0)
+CODE:
+	text = sv_stringify(text);
+	
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	
+	if (max_len > 0 && max_len < text_len)
+		text_len = max_len;
+	
+	myencoding_t encoding;
+	
+	if (!myencoding_detect_and_cut_bom(text_str, text_len, &encoding, &text_str, &text_len))
+		encoding = MyENCODING_NOT_DETERMINED;
+
+	ST(0) = newSViv(encoding);
+	ST(1) = newSVpv(text_str, text_len);
+	
+	sv_2mortal(ST(0));
+	sv_2mortal(ST(1));
+	
+	XSRETURN(2);
+
+void
+detectAuto(SV *text, long max_len = 0, HV *options = NULL)
+CODE:
+	text = sv_stringify(text);
+	
+	STRLEN text_len;
+	const char *text_str = SvPV_const(text, text_len);
+	
+	if (max_len > 0 && max_len < text_len)
+		text_len = max_len;
+	
+	html5_dom_options_t opts = {0};
+	html5_dom_parse_options(&opts, NULL, options);
+	
+	opts.encoding				= MyENCODING_AUTO;
+	opts.default_encoding		= MyENCODING_NOT_DETERMINED;
+	opts.encoding_prescan_limit	= text_len;
+	
+	myencoding_t encoding = html5_dom_auto_encoding(&opts, &text_str, &text_len);
+	
+	ST(0) = newSViv(encoding);
+	ST(1) = newSVpv(text_str, text_len);
+	
+	sv_2mortal(ST(0));
+	sv_2mortal(ST(1));
+	
+	XSRETURN(2);

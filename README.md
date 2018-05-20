@@ -26,15 +26,16 @@ my $parser = HTML5::DOM->new;
 
 # override some options, if you need
 my $parser = HTML5::DOM->new({
-   threads             => 2,
-   async               => 0, 
-   ignore_whitespace   => 0, 
-   ignore_doctype      => 0, 
-   scripts             => 0, 
-   encoding            => "auto", 
-   default_encoding    => "UTF-8", 
-   encoding_use_meta   => 1, 
-   encoding_use_bom    => 1, 
+   threads                     => 2,
+   async                       => 0, 
+   ignore_whitespace           => 0, 
+   ignore_doctype              => 0, 
+   scripts                     => 0, 
+   encoding                    => "auto", 
+   default_encoding            => "UTF-8", 
+   encoding_use_meta           => 1, 
+   encoding_use_bom            => 1, 
+   encoding_prescan_limit      => 1024
 });
 ```
 
@@ -1693,29 +1694,66 @@ my $length = $collection->length;
 
 Items count in collection.
 
-### first
-
 ```perl
-my $node = $collection->first;
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print $collection->length; # 3
 ```
 
-First item in collection.
+### first
 
 ### last
 
 ```perl
+my $node = $collection->first;
 my $node = $collection->last;
 ```
 
-Last item in collection.
+Get first or last item in collection.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print $collection->first->html;        #  <li>Linux</li>
+print $collection->last->html;         #  <li>Windows</li>
+```
 
 ### item
 
 ```perl
 my $node = $collection->item($index);
+my $node = $collection->[$index];
 ```
 
 Get item by `$index` in collection.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print $collection->item(1)->html;      # <li>OSX</li>
+print $collection->[1]->html;          # <li>OSX</li>
+```
 
 ### array
 
@@ -1871,6 +1909,166 @@ my $css = HTML5::DOM::CSS->new;
 my $selector = $css->parseSelector('body div.red, body span.blue');
 my $entry = $selector->entry(0);
 print Dumper($entry->specificityArray); # [0, 1, 2]
+```
+
+# HTML5::DOM::Encoding
+
+Encoding detection.
+
+### id2name
+
+```perl
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+```
+
+Get encoding name by id.
+
+```
+print HTML5::DOM::Encoding::id2name(HTML5::DOM::Encoding::UTF_8); # UTF-8
+```
+
+### name2id
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::name2id($encoding);
+```
+
+Get id by name.
+
+```
+print HTML5::DOM::Encoding::UTF_8;             # 0
+print HTML5::DOM::Encoding::id2name("UTF-8");  # 0
+```
+
+### detectAuto
+
+```perl
+my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectAuto($text, $max_length = 0);
+```
+
+Auto detect text encoding using (in this order):
+
+- [detectByPrescanStream](#detectbyprescanstream)
+- [detectBomAndCut](#detectbomandcut)
+- [detect](#detect)
+
+Returns array with encoding id and new text without BOM, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+
+```perl
+my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectAuto("ололо");
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+print $encoding; # UTF-8
+```
+
+### detect
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detect($text, $max_length = 0);
+```
+
+Detect text encoding. Single method for both [detectRussian](#detectrussian) and [detectUnicode](#detectunicode).
+
+Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detect("ололо");
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+print $encoding; # UTF-8
+```
+
+### detectRussian
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
+```
+
+Detect russian text encoding (using lowercase **trigrams**), such as `windows-1251`, `koi8-r`, `iso-8859-5`, `x-mac-cyrillic`, `ibm866`.
+
+Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+
+### detectUnicode
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
+```
+
+Detect unicode family text encoding, such as `UTF-8`, `UTF-16LE`, `UTF-16BE`.
+
+Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+
+```perl
+# get UTF-16LE data for test
+my $str = "ололо";
+Encode::from_to($str, "UTF-8", "UTF-16LE");
+
+my $encoding_id = HTML5::DOM::Encoding::detectUnicode($str);
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+print $encoding; # UTF-16LE
+```
+
+See for more info: [ENCODINGS](https://metacpan.org/pod/ENCODINGS)
+
+### detectByPrescanStream
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detectByPrescanStream($text, $max_length = 0);
+```
+
+Detect encoding by parsing &lt;meta> tags in html.
+
+Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+
+See for more info: [https://html.spec.whatwg.org/multipage/syntax.html#prescan-a-byte-stream-to-determine-its-encoding](https://html.spec.whatwg.org/multipage/syntax.html#prescan-a-byte-stream-to-determine-its-encoding)
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detectByPrescanStream('
+   <meta http-equiv="content-type" content="text/html; charset=windows-1251">
+');
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+print $encoding; # WINDOWS-1251
+```
+
+See for more info: [ENCODINGS](https://metacpan.org/pod/ENCODINGS)
+
+### detectByCharset
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detectByCharset($text, $max_length = 0);
+```
+
+Extracting character encoding from string. Find "charset=" and see encoding. Return found raw data.
+
+For example: "text/html; charset=windows-1251". Return HTML5::DOM::Encoding::WINDOWS\_1251
+
+And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+
+See for more info: [https://html.spec.whatwg.org/multipage/infrastructure.html#algorithm-for-extracting-a-character-encoding-from-a-meta-element](https://html.spec.whatwg.org/multipage/infrastructure.html#algorithm-for-extracting-a-character-encoding-from-a-meta-element)
+
+```perl
+my $encoding_id = HTML5::DOM::Encoding::detectByPrescanStream('
+   <meta http-equiv="content-type" content="text/html; charset=windows-1251">
+');
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+print $encoding; # WINDOWS-1251
+```
+
+See for more info: [ENCODINGS](https://metacpan.org/pod/ENCODINGS)
+
+### detectBomAndCut
+
+```perl
+my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectBomAndCut($text, $max_length = 0);
+```
+
+Returns array with encoding id and new text without BOM. 
+
+If fail, then encoding id equal HTML5::DOM::Encoding::NOT\_DETERMINED.
+
+```perl
+my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectBomAndCut("\xEF\xBB\xBFололо");
+my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
+print $encoding; # UTF-8
+print $new_text; # ололо
 ```
 
 # PARSER OPTIONS

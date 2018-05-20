@@ -27,7 +27,7 @@ sub genReadmeMd {
 	
 	$markdown =~ s/(\(#html5-dom[\w\d_-]*\))/$fix->($1)/ge;
 	
-	write_file(dirname(__FILE__)."/../README.md", $markdown);
+	write_file(dirname(__FILE__)."/../README.md", {binmode => ':utf8'}, $markdown);
 }
 
 sub genTagsDisplayProp {
