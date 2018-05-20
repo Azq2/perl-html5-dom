@@ -736,8 +736,10 @@ static modest_finder_selector_combinator_f html5_find_selector_func(const char *
 			return modest_finder_node_combinator_next_sibling;
 		if (c[0] == '~')
 			return modest_finder_node_combinator_following_sibling;
+		if (c[0] == '^')
+			return modest_finder_node_combinator_begin;
 	}
-	return modest_finder_node_combinator_begin;
+	return modest_finder_node_combinator_descendant;
 }
 
 static SV *html5_node_find(CV *cv, html5_dom_parser_t *parser, myhtml_tree_node_t *scope, SV *query, SV *combinator, bool one) {
@@ -745,7 +747,7 @@ static SV *html5_node_find(CV *cv, html5_dom_parser_t *parser, myhtml_tree_node_
 	mycss_selectors_entries_list_t *list = NULL;
 	size_t list_size = 0;
 	mycss_selectors_list_t *selector = NULL;
-	modest_finder_selector_combinator_f selector_func = modest_finder_node_combinator_begin;
+	modest_finder_selector_combinator_f selector_func = modest_finder_node_combinator_descendant;
 	SV *result = &PL_sv_undef;
 	
 	// Custom combinator as args
@@ -809,6 +811,9 @@ static SV *html5_node_find(CV *cv, html5_dom_parser_t *parser, myhtml_tree_node_
 }
 
 static SV *html5_node_simple_find(CV *cv, myhtml_tree_node_t *self, SV *key, SV *val, SV *cmp, bool icase, int ix) {
+	if (!self)
+		return collection_to_blessed_array(NULL);
+	
 	SV *result = &PL_sv_undef;
 	key = sv_stringify(key);
 	
@@ -1635,9 +1640,11 @@ ALIAS:
 	querySelectorAll	= 3
 CODE:
 	myhtml_tree_node_t *scope = myhtml_tree_get_document(self->tree);
-	if (!scope)
-		scope = myhtml_tree_get_node_html(self->tree);
-	RETVAL = html5_node_find(cv, self->parser, scope, query, combinator, ix == 1 || ix == 2);
+	if (scope) {
+		RETVAL = html5_node_find(cv, self->parser, scope, query, combinator, ix == 1 || ix == 2);
+	} else {
+		RETVAL = &PL_sv_undef;
+	}
 OUTPUT:
 	RETVAL
 
@@ -1711,7 +1718,7 @@ CODE:
 	tag = sv_stringify(tag);
 	STRLEN tag_len;
 	const char *tag_str = SvPV_const(tag, tag_len);
-	RETVAL = newSViv(html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, true));
+	RETVAL = newSViv(html5_dom_tag_id_by_name(self->tree, tag_str, tag_len, false));
 OUTPUT:
 	RETVAL
 

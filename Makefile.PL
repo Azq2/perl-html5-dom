@@ -17,6 +17,11 @@ my $sources = [
 ];
 
 WriteMakefile(
+	dist	=> {
+		PREOP		=> 'pod2text lib/HTML5/DOM.pod > README',
+		COMPRESS	=> 'gzip -9v',
+		SUFFIX		=> '.gz',
+	},
     AUTHOR			=> 'Kirill Zhumarin <kirill.zhumarin@gmail.com>',
     ABSTRACT		=> 'Super fast html5 DOM library with css selectors (based on Modest/MyHTML)',
     VERSION_FROM	=> 'lib/HTML5/DOM.pm',
