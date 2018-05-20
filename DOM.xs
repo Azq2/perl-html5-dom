@@ -1693,6 +1693,20 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Get compat node
+SV *
+compatMode(HTML5::DOM::Tree self)
+CODE:
+	if (self->tree->compat_mode == MyHTML_TREE_COMPAT_MODE_QUIRKS) {
+		// if the document is in quirks mode.
+		RETVAL = newSVpv("BackCompat", 10);
+	} else {
+		// if the document is in no-quirks (also known as "standards") mode or limited-quirks (also known as "almost standards") mode.
+		RETVAL = newSVpv("CSS1Compat", 10);
+	}
+OUTPUT:
+	RETVAL
+
 # Get current tree encoding name
 SV *
 encoding(HTML5::DOM::Tree self)

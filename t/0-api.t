@@ -140,6 +140,7 @@ ok($tree->parser == $parser, 'parser');
 
 # finders
 $tree = $parser->parse('
+	<!DOCTYPE html>
 	<div id="test0" some-attr="ololo trololo" class="red blue">
 		<div class="yellow" id="test1"></div>
 	</div>
@@ -151,33 +152,46 @@ $tree = $parser->parse('
 # querySelector + at
 for my $method (qw|at querySelector|) {
 	isa_ok($tree->$method('div'), 'HTML5::DOM::Element');
-	ok($tree->$method('div')->attr("id") eq 'test0', $method);
-	ok(!defined $tree->$method('xuj'), $method.' not found');
+	ok($tree->$method('div')->attr("id") eq 'test0', "$method: find div");
+	ok(!defined $tree->$method('xuj'), "$method: not found");
 }
 
 # findId + getElementById
 for my $method (qw|findId getElementById|) {
 	isa_ok($tree->$method('test2'), 'HTML5::DOM::Element');
-	ok($tree->$method('test2')->attr("id") eq 'test2', $method);
-	ok(!defined $tree->$method('xuj'), $method.' not found');
+	ok($tree->$method('test2')->attr("id") eq 'test2', "$method: find #test2");
+	ok(!defined $tree->$method('xuj'), "$method: not found");
 }
 
 # find + querySelectorAll
 for my $method (qw|find querySelectorAll|) {
 	isa_ok($tree->$method('.blue'), 'HTML5::DOM::Collection');
 	isa_ok($tree->$method('.ewfwefwefwefwef'), 'HTML5::DOM::Collection');
-	ok($tree->$method('.blue')->length == 2, $method.' results');
-	ok($tree->$method('.ewfwefwefwefwef')->length == 0, $method.' results not found');
-	ok($tree->$method('.blue')->item(1)->attr("id") eq "test2", $method.' #test2 by .blue');
+	ok($tree->$method('.blue')->length == 2, "$method: find .blue");
+	ok($tree->$method('.bluE')->length == 0, "$method: find .bluE");
+	ok($tree->$method('.ewfwefwefwefwef')->length == 0, "$method: not found");
+	ok($tree->$method('.blue')->item(1)->attr("id") eq "test2", "$method: check result element");
 }
 
 # findTag + getElementsByTagName
 for my $method (qw|findTag getElementsByTagName|) {
 	isa_ok($tree->$method('div'), 'HTML5::DOM::Collection');
 	isa_ok($tree->$method('ewfwefwefwefwef'), 'HTML5::DOM::Collection');
-	ok($tree->$method('div')->length == 4, $method.' results');
-	ok($tree->$method('ewfwefwefwefwef')->length == 0, $method.' results not found');
-	ok($tree->$method('div')->item(0)->attr("id") eq "test0", $method.' #test0 by div');
+	ok($tree->$method('div')->length == 4, "$method: find div");
+	ok($tree->$method('dIv')->length == 4, "$method: find dIv");
+	ok($tree->$method('ewfwefwefwefwef')->length == 0, "$method: not found");
+	ok($tree->$method('div')->item(0)->attr("id") eq "test0", "$method: check result element");
+}
+
+# findClass + getElementsByClassName
+for my $method (qw|findClass getElementsByClassName|) {
+	isa_ok($tree->$method('blue'), 'HTML5::DOM::Collection');
+	isa_ok($tree->$method('ewfwefwefwefwef'), 'HTML5::DOM::Collection');
+	ok($tree->$method('blue')->length == 2, "$method: find .blue");
+	ok($tree->$method('red')->length == 1, "$method: find .red");
+	ok($tree->$method('bluE')->length == 0, "$method: find .bluE");
+	ok($tree->$method('ewfwefwefwefwef')->length == 0, "$method: not found");
+	ok($tree->$method('yellow')->item(0)->attr("id") eq "test1", "$method: check result element");
 }
 
 done_testing;
