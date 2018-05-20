@@ -321,6 +321,12 @@ CSS selector analogs:
  # [$attribute*=$value]
  my $collection = $tree->findAttr($attribute, $value, 0, '*');
 
+ # [$attribute^=$value]
+ my $collection = $tree->findAttr($attribute, $value, 0, '^');
+
+ # [$attribute$=$value]
+ my $collection = $tree->findAttr($attribute, $value, 0, '$');
+
 =head3 encoding
 
 =head3 encodingId
@@ -397,12 +403,14 @@ DOM node object.
 =head3 nodeName
 
  my $tag_name = $node->tag;
- my $tag_name = $node->nodeName; # alias
+ my $tag_name = $node->nodeName; # uppercase
+ my $tag_name = $node->tagName;  # uppercase
 
 Return node tag name (eg. div or span)
 
  $node->tag($tag);
  $node->nodeName($tag); # alias
+ $node->tagName($tag);  # alias
 
 Set new node tag name. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM::Element"> nodes.
 
@@ -410,6 +418,7 @@ Set new node tag name. Allow only for L<HTML5::DOM::Element|/"HTML5::DOM::Elemen
  $node->tag('span');
  print $node->html; # <span></span>
  print $node->tag; # span
+ print $node->tag; # SPAN
 
 =head3 tagId
 
@@ -1508,6 +1517,12 @@ CSS selector analogs:
  
  # [$attribute*=$value]
  my $collection = $node->findAttr($attribute, $value, 0, '*');
+
+ # [$attribute^=$value]
+ my $collection = $node->findAttr($attribute, $value, 0, '^');
+
+ # [$attribute$=$value]
+ my $collection = $node->findAttr($attribute, $value, 0, '$');
 
 =head3 getDefaultBoxType
 

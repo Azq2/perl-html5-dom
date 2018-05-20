@@ -345,6 +345,12 @@ my $collection = $tree->findAttr($attribute, $value, 0, '|');
 
 # [$attribute*=$value]
 my $collection = $tree->findAttr($attribute, $value, 0, '*');
+
+# [$attribute^=$value]
+my $collection = $tree->findAttr($attribute, $value, 0, '^');
+
+# [$attribute$=$value]
+my $collection = $tree->findAttr($attribute, $value, 0, '$');
 ```
 
 ### encoding
@@ -438,7 +444,8 @@ DOM node object.
 
 ```perl
 my $tag_name = $node->tag;
-my $tag_name = $node->nodeName; # alias
+my $tag_name = $node->nodeName; # uppercase
+my $tag_name = $node->tagName;  # uppercase
 ```
 
 Return node tag name (eg. div or span)
@@ -446,6 +453,7 @@ Return node tag name (eg. div or span)
 ```
 $node->tag($tag);
 $node->nodeName($tag); # alias
+$node->tagName($tag);  # alias
 ```
 
 Set new node tag name. Allow only for [HTML5::DOM::Element](#html5domelement) nodes.
@@ -455,6 +463,7 @@ print $node->html; # <div></div>
 $node->tag('span');
 print $node->html; # <span></span>
 print $node->tag; # span
+print $node->tag; # SPAN
 ```
 
 ### tagId
@@ -1636,6 +1645,12 @@ my $collection = $node->findAttr($attribute, $value, 0, '|');
 
 # [$attribute*=$value]
 my $collection = $node->findAttr($attribute, $value, 0, '*');
+
+# [$attribute^=$value]
+my $collection = $node->findAttr($attribute, $value, 0, '^');
+
+# [$attribute$=$value]
+my $collection = $node->findAttr($attribute, $value, 0, '$');
 ```
 
 ### getDefaultBoxType

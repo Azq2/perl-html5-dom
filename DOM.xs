@@ -154,16 +154,6 @@ typedef html5_css_parser_t *			HTML5__DOM__CSS;
 typedef html5_css_selector_t *			HTML5__DOM__CSS__Selector;
 typedef html5_css_selector_entry_t *	HTML5__DOM__CSS__Selector__Entry;
 
-static inline int utf8_char_size(char c) {
-	if ((c & 0xE0) == 0xC0)
-		return 2;
-	if ((c & 0xF0) == 0xE0)
-		return 3;
-	if ((c & 0xF8) == 0xF0)
-		return 4;
-	return 1;
-}
-
 static inline bool html5_dom_is_fragment(myhtml_tree_node_t *node) {
 	html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
 	return context->fragment_tag_id && node->tag_id == context->fragment_tag_id;
@@ -296,14 +286,6 @@ static void html5_dom_recursive_node_inner_text(myhtml_tree_node_t *node, html5_
 		
 		bool is_empty = true;
 		for (size_t i = 0; i < text_len; ++i) {
-			// skip multibyte chars
-			int utf_len = utf8_char_size(text[i]);
-			if (utf_len > 1) {
-				mycore_string_append(&state->value, &text[i], utf_len);
-				i += utf_len - 1;
-				continue;
-			}
-			
 			// skip CR
 			if (text[i] == '\r')
 				continue;
@@ -360,10 +342,6 @@ static void html5_dom_recursive_node_inner_text(myhtml_tree_node_t *node, html5_
 						state->new_line = true;
 						state->last_br = true;
 					}
-				break;
-				
-				case TAG_UA_STYLE_TABLE_ROW:
-					
 				break;
 			}
 			
@@ -1858,6 +1836,7 @@ SV *
 tag(HTML5::DOM::Node self, SV *new_tag_name = NULL)
 ALIAS:
 	nodeName	= 1
+	tagName		= 2
 CODE:
 	myhtml_tree_t *tree = self->tree;
 	
@@ -1866,6 +1845,9 @@ CODE:
 		new_tag_name = sv_stringify(new_tag_name);
 		STRLEN new_tag_name_len;
 		const char *new_tag_name_str = SvPV_const(new_tag_name, new_tag_name_len);
+		
+		if (!new_tag_name_len)
+			sub_croak(cv, "empty tag name not allowed.");
 		
 		myhtml_tag_id_t tag_id = html5_dom_tag_id_by_name(self->tree, new_tag_name_str, new_tag_name_len, true);
 		self->tag_id = tag_id;
@@ -1878,8 +1860,15 @@ CODE:
 		
 		if (tree && tree->tags) {
 			const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(tree->tags, self->tag_id);
-			if (tag_ctx)
+			if (tag_ctx) {
 				RETVAL = newSVpv(tag_ctx->name, tag_ctx->name_length);
+				if (ix == 1 || ix == 2) {
+					STRLEN value_len;
+					char *value = SvPV(RETVAL, value_len);
+					for (size_t i = 0; i < value_len; ++i)
+						value[i] = toupper(value[i]);
+				}
+			}
 		}
 	}
 OUTPUT:
