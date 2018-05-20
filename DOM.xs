@@ -1272,6 +1272,22 @@ void html5_dom_css_serialize_entry(mycss_selectors_list_t *selector, mycss_selec
 					}
 					break;
 					
+					case MyCSS_SELECTORS_SUB_TYPE_PSEUDO_CLASS_FUNCTION_DROP:
+					{
+						hv_store_ent(data, sv_2mortal(newSVpv("name", 4)), newSVpv("drop", 4), 0);
+						mycss_selectors_function_drop_type_t drop_val = mycss_selector_value_drop(entry->value);
+						
+						AV *langs = newAV();
+						if (drop_val & MyCSS_SELECTORS_FUNCTION_DROP_TYPE_ACTIVE)
+							av_push(langs, newSVpv("active", 6));
+						if (drop_val & MyCSS_SELECTORS_FUNCTION_DROP_TYPE_VALID)
+							av_push(langs, newSVpv("valid", 5));
+						if (drop_val & MyCSS_SELECTORS_FUNCTION_DROP_TYPE_INVALID)
+							av_push(langs, newSVpv("invalid", 7));
+						hv_store_ent(data, sv_2mortal(newSVpv("value", 5)), newRV_noinc((SV *) langs), 0);
+					}
+					break;
+					
 					case MyCSS_SELECTORS_SUB_TYPE_PSEUDO_CLASS_FUNCTION_LANG:
 					{
 						hv_store_ent(data, sv_2mortal(newSVpv("name", 4)), newSVpv("lang", 4), 0);
@@ -2324,7 +2340,11 @@ CODE:
 		myhtml_tree_node_insert_before(reference_node, new_node);
 	}
 	
-	RETVAL = SvREFCNT_inc(ST(0));
+	if (ix == 1) {
+		RETVAL = node_to_sv(new_node);
+	} else {
+		RETVAL = SvREFCNT_inc(ST(0));
+	}
 OUTPUT:
 	RETVAL
 
@@ -2369,7 +2389,11 @@ CODE:
 		myhtml_tree_node_insert_after(reference_node, new_node);
 	}
 	
-	RETVAL = SvREFCNT_inc(ST(0));
+	if (ix == 1) {
+		RETVAL = node_to_sv(new_node);
+	} else {
+		RETVAL = SvREFCNT_inc(ST(0));
+	}
 OUTPUT:
 	RETVAL
 
@@ -2399,7 +2423,11 @@ CODE:
 		myhtml_tree_node_add_child(self, child);
 	}
 	
-	RETVAL = SvREFCNT_inc(ST(0));
+	if (ix == 1) {
+		RETVAL = node_to_sv(child);
+	} else {
+		RETVAL = SvREFCNT_inc(ST(0));
+	}
 OUTPUT:
 	RETVAL
 
@@ -2439,7 +2467,11 @@ CODE:
 		}
 	}
 	
-	RETVAL = SvREFCNT_inc(ST(0));
+	if (ix == 1) {
+		RETVAL = node_to_sv(child);
+	} else {
+		RETVAL = SvREFCNT_inc(ST(0));
+	}
 OUTPUT:
 	RETVAL
 

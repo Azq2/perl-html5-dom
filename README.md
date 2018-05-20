@@ -1777,7 +1777,7 @@ Get collection items as array.
 my $html = $collection->html;
 ```
 
-Concat outerHTML from all items.
+Concat &lt;outerHTML|/outerHTML> from all items.
 
 ### text
 
@@ -1785,7 +1785,7 @@ Concat outerHTML from all items.
 my $text = $collection->text;
 ```
 
-Concat textContent from all items.
+Concat &lt;textContent|/textContent> from all items.
 
 # HTML5::DOM::CSS
 

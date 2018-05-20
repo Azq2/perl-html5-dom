@@ -1629,13 +1629,13 @@ Get collection items as array.
 
  my $html = $collection->html;
 
-Concat outerHTML from all items.
+Concat <outerHTML|/outerHTML> from all items.
 
 =head3 text
 
  my $text = $collection->text;
 
-Concat textContent from all items.
+Concat <textContent|/textContent> from all items.
 
 
 =head1 HTML5::DOM::CSS
