@@ -1,6 +1,6 @@
 # NAME
 
-HTML5::DOM - Super fast html5 DOM library with css selectors (based on Modest/MyHTML)
+[HTML5::DOM](https://metacpan.org/pod/HTML5::DOM) - Super fast html5 DOM library with css selectors (based on Modest/MyHTML)
 
 <div>
     <a href="https://travis-ci.org/Azq2/perl-html5-dom"><img src="https://travis-ci.org/Azq2/perl-html5-dom.svg?branch=master"></a>
@@ -1915,6 +1915,8 @@ print Dumper($entry->specificityArray); # [0, 1, 2]
 
 Encoding detection.
 
+See for available encodings: ["ENCODINGS"](#encodings)
+
 ### id2name
 
 ```perl
@@ -1952,7 +1954,9 @@ Auto detect text encoding using (in this order):
 - [detectBomAndCut](#detectbomandcut)
 - [detect](#detect)
 
-Returns array with encoding id and new text without BOM, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+Returns array with encoding id and new text without BOM, if success. 
+
+If fail, then encoding id equal HTML5::DOM::Encoding::NOT\_DETERMINED.
 
 ```perl
 my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectAuto("ололо");
@@ -2006,15 +2010,13 @@ my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
 print $encoding; # UTF-16LE
 ```
 
-See for more info: [ENCODINGS](https://metacpan.org/pod/ENCODINGS)
-
 ### detectByPrescanStream
 
 ```perl
 my $encoding_id = HTML5::DOM::Encoding::detectByPrescanStream($text, $max_length = 0);
 ```
 
-Detect encoding by parsing &lt;meta> tags in html.
+Detect encoding by parsing `<meta>` tags in html.
 
 Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
 
@@ -2027,8 +2029,6 @@ my $encoding_id = HTML5::DOM::Encoding::detectByPrescanStream('
 my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
 print $encoding; # WINDOWS-1251
 ```
-
-See for more info: [ENCODINGS](https://metacpan.org/pod/ENCODINGS)
 
 ### detectByCharset
 
@@ -2052,8 +2052,6 @@ my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
 print $encoding; # WINDOWS-1251
 ```
 
-See for more info: [ENCODINGS](https://metacpan.org/pod/ENCODINGS)
-
 ### detectBomAndCut
 
 ```perl
@@ -2071,22 +2069,94 @@ print $encoding; # UTF-8
 print $new_text; # ололо
 ```
 
+# ENCODINGS
+
+### Supported encoding names
+
+```
+AUTO, NOT-DETERMINED, X-USER-DEFINED, 
+BIG5, EUC-JP, EUC-KR, GB18030, GBK, IBM866, MACINTOSH, X-MAC-CYRILLIC, SHIFT_JIS, 
+ISO-2022-JP, ISO-8859-10, ISO-8859-13, ISO-8859-14, ISO-8859-15, ISO-8859-16, ISO-8859-2, 
+ISO-8859-3, ISO-8859-4, ISO-8859-5, ISO-8859-6, ISO-8859-7, ISO-8859-8, ISO-8859-8-I, 
+WINDOWS-1250, WINDOWS-1251, WINDOWS-1252, WINDOWS-1253, WINDOWS-1254, 
+WINDOWS-1255, WINDOWS-1256, WINDOWS-1257, WINDOWS-1258, WINDOWS-874, 
+UTF-8, UTF-16BE, UTF-16LE, KOI8-R, KOI8-U
+```
+
+### Supported encoding id consts
+
+```
+HTML5::DOM::Encoding::DEFAULT
+HTML5::DOM::Encoding::AUTO
+HTML5::DOM::Encoding::NOT_DETERMINED
+HTML5::DOM::Encoding::UTF_8
+HTML5::DOM::Encoding::UTF_16LE
+HTML5::DOM::Encoding::UTF_16BE
+HTML5::DOM::Encoding::X_USER_DEFINED
+HTML5::DOM::Encoding::BIG5
+HTML5::DOM::Encoding::EUC_JP
+HTML5::DOM::Encoding::EUC_KR
+HTML5::DOM::Encoding::GB18030
+HTML5::DOM::Encoding::GBK
+HTML5::DOM::Encoding::IBM866
+HTML5::DOM::Encoding::ISO_2022_JP
+HTML5::DOM::Encoding::ISO_8859_10
+HTML5::DOM::Encoding::ISO_8859_13
+HTML5::DOM::Encoding::ISO_8859_14
+HTML5::DOM::Encoding::ISO_8859_15
+HTML5::DOM::Encoding::ISO_8859_16
+HTML5::DOM::Encoding::ISO_8859_2
+HTML5::DOM::Encoding::ISO_8859_3
+HTML5::DOM::Encoding::ISO_8859_4
+HTML5::DOM::Encoding::ISO_8859_5
+HTML5::DOM::Encoding::ISO_8859_6
+HTML5::DOM::Encoding::ISO_8859_7
+HTML5::DOM::Encoding::ISO_8859_8
+HTML5::DOM::Encoding::ISO_8859_8_I
+HTML5::DOM::Encoding::KOI8_R
+HTML5::DOM::Encoding::KOI8_U
+HTML5::DOM::Encoding::MACINTOSH
+HTML5::DOM::Encoding::SHIFT_JIS
+HTML5::DOM::Encoding::WINDOWS_1250
+HTML5::DOM::Encoding::WINDOWS_1251
+HTML5::DOM::Encoding::WINDOWS_1252
+HTML5::DOM::Encoding::WINDOWS_1253
+HTML5::DOM::Encoding::WINDOWS_1254
+HTML5::DOM::Encoding::WINDOWS_1255
+HTML5::DOM::Encoding::WINDOWS_1256
+HTML5::DOM::Encoding::WINDOWS_1257
+HTML5::DOM::Encoding::WINDOWS_1258
+HTML5::DOM::Encoding::WINDOWS_874
+HTML5::DOM::Encoding::X_MAC_CYRILLIC
+HTML5::DOM::Encoding::LAST_ENTRY
+```
+
 # PARSER OPTIONS
 
-Options for [HTML5::DOM::new](https://metacpan.org/pod/HTML5::DOM::new), [HTML5::DOM::parse](https://metacpan.org/pod/HTML5::DOM::parse), [HTML5::DOM::new](https://metacpan.org/pod/HTML5::DOM::new), [HTML5::DOM::Node::parseFragment](https://metacpan.org/pod/HTML5::DOM::Node::parseFragment)
+Options for:
+
+- [HTML5::DOM::new](#new)
+- [HTML5::DOM::parse](#parse)
+- [HTML5::DOM::parseChunkEnd](#parsechunkend)
+- [HTML5::DOM::Tree::parseFragment](#parsefragment)
 
 #### threads
 
 Threads count, if 0 - parsing in single mode without threads (default 2)
 
+This option affects only for [HTML5::DOM::new](#new).
+
 #### async
 
-If async 0 (default), then some parse functions [HTML5::DOM::Node::parseFragment](#parsefragment), [HTML5::DOM::parse](#parse), [HTML5::DOM::parseChunkEnd](#parsechunkend) waiting for parsing done.
+If async 0 (default), then some parsing functions
+(such as [HTML5::DOM::parse](#parse), [HTML5::DOM::parseChunkEnd](#parsechunkend), [HTML5::DOM::Tree::parseFragment](#parsefragment))
+waiting for parsing done.
 
-If async 1, you must manualy call [HTML5::DOM::Node::wait](#wait) and [HTML5::DOM::Tree::wait](#wait) for waiting parsing of node or tree done or 
-[HTML5::DOM::Node::parsed](#parsed), [HTML5::DOM::Node::parsed](#parsed) to non-blocking determine parsing done.
+If async 1, you must manualy call `$tree->wait` and `$node->wait` for waiting parsing done.
 
-This options affects only if threads > 0
+Or use non-blocking `$tree->parsed` and `$node->parsed` to determine parsing state.
+
+This options works only if `threads` > 0
 
 #### ignore\_whitespace
 
@@ -2104,16 +2174,32 @@ If 0 - &lt;noscript> contents parsed to child nodes
 
 #### encoding
 
-Encoding of input HTML, if auto - library can tree to automaticaly determine encoding. (default "auto")
+Encoding of input HTML, if `auto` - library can tree to automaticaly determine encoding. (default "auto")
+
+Allowed both encoding name or id. 
 
 #### default\_encoding
 
-Default encoding, this affects only if encoding set to "auto" and encoding not determined. (default "UTF-8")
+Default encoding, this affects only if `encoding` set to `auto` and encoding not determined. (default "UTF-8")
+
+Allowed both encoding name or id. 
+
+See for available encodings: ["ENCODINGS"](#encodings)
 
 #### encoding\_use\_meta
 
-Allow use &lt;meta> tags to determine input HTML encoding. (default 1)
+Allow use `<meta>` tags to determine input HTML encoding. (default 1)
+
+See [detectByPrescanStream](#detectbyprescanstream).
+
+#### encoding\_prescan\_limit
+
+Limit string length to determine encoding by `<meta>` tags. (default 1024, from spec)
+
+See [detectByPrescanStream](#detectbyprescanstream).
 
 #### encoding\_use\_bom
 
 Allow use detecding BOM to determine input HTML encoding. (default 1)
+
+See [detectBomAndCut](#detectbomandcut).
