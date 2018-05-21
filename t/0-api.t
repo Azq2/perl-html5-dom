@@ -351,4 +351,93 @@ ok($@ =~ /unknown namespace/, "node->namespaceId: set unknown namespace");
 isa_ok($el_node->tree, "HTML5::DOM::Tree");
 ok($el_node->tree == $tree, "node->tree");
 
+$tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+
+# test all siblings navigators
+my $siblings_tests = [
+	{
+		methods	=> [qw|next nextElementSibling|], 
+		index	=> 1, 
+		results	=> [
+			['HTML5::DOM::Element',	qr/^Linux$/], 
+			['HTML5::DOM::Element',	qr/^OSX$/], 
+			['HTML5::DOM::Element',	qr/^Windows$/], 
+			['',					undef]
+		]
+	}, 
+	{
+		methods	=> [qw|prev previousElementSibling|], 
+		index	=> -2, 
+		results	=> [
+			['HTML5::DOM::Element',	qr/^Windows$/], 
+			['HTML5::DOM::Element',	qr/^OSX$/], 
+			['HTML5::DOM::Element',	qr/^Linux$/], 
+			['',					undef]
+		]
+	}, 
+	{
+		methods	=> [qw|nextNode nextSibling|], 
+		index	=> 0, 
+		results	=> [
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Element',	qr/^Linux$/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Comment',	qr/^ comment $/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Element',	qr/^OSX$/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Element',	qr/^Windows$/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['',					undef]
+		]
+	}, 
+	{
+		methods	=> [qw|prevNode previousSibling|], 
+		index	=> -1, 
+		results	=> [
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Element',	qr/^Windows$/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Element',	qr/^OSX$/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Comment',	qr/^ comment $/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['HTML5::DOM::Element',	qr/^Linux$/], 
+			['HTML5::DOM::Text',	qr/^\s+$/], 
+			['',					undef]
+		]
+	}
+];
+
+for my $test (@$siblings_tests) {
+	my $ul = $tree->at('ul');
+	ok($ul->tag eq 'ul', "siblings test: check test element");
+	
+	for my $method (@{$test->{methods}}) {
+		my $next = $ul->childrenNode->[$test->{index}];
+		my @chain = ($method);
+		for my $result (@{$test->{results}}) {
+			ok(ref($next) eq $result->[0], join(" > ", @chain)." check ref");
+			
+			if (defined $result->[1]) {
+				ok($next->text =~ $result->[1], join(" > ", @chain)." check value");
+			} else {
+				ok(!defined $result->[1], join(" > ", @chain)." (undef)");
+			}
+			
+			last if (!$next);
+			
+			$next = $next->$method;
+			push @chain, $method;
+		}
+	}
+}
+
 done_testing;
