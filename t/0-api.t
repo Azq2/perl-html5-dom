@@ -1278,7 +1278,7 @@ ok(ref($selector->entry(0)->ast) eq 'ARRAY', 'selector entry ast');
 
 # specificity + specificityArray
 my $ent_id = 0;
-for my $spec (qw|2,1,2 0,0,1 1,0,1 0,0,2 0,0,2|) {
+for my $spec (('2,1,2', '0,0,1', '1,0,1', '0,0,2', '0,0,2')) {
 	my $ent = $selector->entry($ent_id);
 	ok(join(",", @{$ent->specificityArray}) eq $spec, "css selector entry($ent_id) specificityArray");
 	my $arr = [$ent->specificity->{b}, $ent->specificity->{a}, $ent->specificity->{c}];
