@@ -8,11 +8,87 @@
 
 # SYNOPSIS
 
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+# create parser object
+my $parser = HTML5::DOM->new;
+
+# parse some html
+my $tree = $parser->parse('
+ <label>Some list of OS:</lbnel>
+ <ul class="list" data-what="os" title="OS list">
+    <li>UNIX</li>
+    <li>Linux</li>
+    <!-- comment -->
+    <li>OSX</li>
+    <li>Windows</li>
+    <li>FreeBSD</li>
+ </ul>
+');
+
+# find one element by CSS selector
+my $ul = $tree->at('ul.list');
+
+# prints tag
+print $ul->tag."\n"; # ul
+
+# check if <ul> has class list
+print "<ul> has class .list\n" if ($ul->classList->has('list'));
+
+# add some class
+$ul->classList->add('os-list');
+
+# prints <ul> classes
+print $ul->className."\n"; # list os-list
+
+# prints <ul> attribute title
+print $ul->attr("title")."\n"; # OS list
+
+# changing <ul> attribute title
+$ul->attr("title", "OS names list");
+
+# find all os names
+$ul->find('li')->each(sub {
+ my ($node, $index) = @_;
+ print "OS #$index: ".$node->text."\n";
+});
+
+# we can use precompiled selectors
+my $css_parser = HTML5::DOM::CSS->new;
+my $selector = $css_parser->parseSelector('li');
+
+# remove OSX from OS
+$ul->find($selector)->[2]->remove();
+
+# serialize tree
+print $tree->html."\n";
+
+# TODO: more examples in SYNOPSIS
+# But you can explore API documentation.
+# My lib have simple API, which is intuitively familiar to anyone who used the DOM.
+# Sorry, if my english is very bad, in future, i may be fix this. 
+# Or you can help me with this, by sending pull request.
+```
+
 # DESCRIPTION
 
 [HTML5::DOM](https://metacpan.org/pod/HTML5::DOM) is a fast HTML5 parser and DOM manipulatin library with CSS4 selectors, fully conformant with the HTML5 specification.
 
 It based on  [https://github.com/lexborisov/Modest](https://github.com/lexborisov/Modest) as selector engine and [https://github.com/lexborisov/myhtml](https://github.com/lexborisov/myhtml) as HTML5 parser. 
+
+### Key features
+
+- Really fast HTML parsing, can use threads (by default).
+- Supports async parsing.
+- Supports parsing by chunks.
+- Fully conformant with the HTML5 specification.
+- Fast CSS4 selectors.
+- Any manipulations using DOM-like API.
+- Auto-detect input encoding.
+- Fully integration in perl and memory management. You don't care about "free" or "destroy".
 
 # HTML5::DOM
 
@@ -113,7 +189,7 @@ Create new [HTML5::DOM::Element](#html5domelement) with specified tag and namesp
 
 ```perl
 # create new comment
-my $node = $tree->createComment("ololo");
+my $node = $tree->createComment(" ololo ");
 
 print $node->html; # <!-- ololo -->
 ```
@@ -367,42 +443,42 @@ Return current tree encoding. See ["ENCODINGS"](#encodings) for details.
 ### tag2id
 
 ```
-print "tag id: ".HTML5::DOM::TAG_A."\n"; # tag id: 4
+print "tag id: ".HTML5::DOM->TAG_A."\n"; # tag id: 4
 print "tag id: ".$tree->tag2id("a")."\n"; # tag id: 4
 ```
 
-Convert tag name to id. Return 0 (HTML5::DOM::TAG\_\_UNDEF), if tag not exists in tree.
-See ["CONSTANTS"](#constants) for tag constants list. 
+Convert tag name to id. Return 0 (HTML5::DOM->TAG\_\_UNDEF), if tag not exists in tree.
+See ["TAGS"](#tags) for tag constants list. 
 
 ### id2tag
 
 ```
 print "tag name: ".$tree->id2tag(4)."\n"; # tag name: a
-print "tag name: ".$tree->id2tag(HTML5::DOM::TAG_A)."\n"; # tag name: a
+print "tag name: ".$tree->id2tag(HTML5::DOM->TAG_A)."\n"; # tag name: a
 ```
 
 Convert tag id to name. Return `undef`, if tag id not exists in tree.
-See ["CONSTANTS"](#constants) for tag constants list. 
+See ["TAGS"](#tags) for tag constants list. 
 
 ### namespace2id
 
 ```
-print "ns id: ".HTML5::DOM::NS_HTML."\n"; # ns id: 1
+print "ns id: ".HTML5::DOM->NS_HTML."\n"; # ns id: 1
 print "ns id: ".$tree->namespace2id("html")."\n"; # ns id: 1
 ```
 
-Convert namespace name to id. Return 0 (HTML5::DOM::NS\_UNDEF), if namespace not exists in tree.
-See ["CONSTANTS"](#constants) for namespace constants list. 
+Convert namespace name to id. Return 0 (HTML5::DOM->NS\_UNDEF), if namespace not exists in tree.
+See ["NAMESPACES"](#namespaces) for namespace constants list. 
 
 ### id2namespace
 
 ```
 print "ns name: ".$tree->id2namespace(1)."\n"; # ns name: html
-print "ns name: ".$tree->id2namespace(HTML5::DOM::NS_HTML)."\n"; # ns name: html
+print "ns name: ".$tree->id2namespace(HTML5::DOM->NS_HTML)."\n"; # ns name: html
 ```
 
 Convert namespace id to name. Return `undef`, if namespace id not exists.
-See ["CONSTANTS"](#constants) for namespace constants list. 
+See ["NAMESPACES"](#namespaces) for namespace constants list. 
 
 ### wait
 
@@ -472,7 +548,7 @@ print $node->tag; # SPAN
 my $tag_id = $node->tagId;
 ```
 
-Return node tag id. See ["CONSTANTS"](#constants) for tag constants list.
+Return node tag id. See ["TAGS"](#tags) for tag constants list.
 
 ```
 $node->tagId($tag_id);
@@ -482,7 +558,7 @@ Set new node tag id. Allow only for [HTML5::DOM::Element](#html5domelement) node
 
 ```
 print $node->html; # <div></div>
-$node->tagId(HTML5::DOM::TAG_SPAN);
+$node->tagId(HTML5::DOM->TAG_SPAN);
 print $node->html; # <span></span>
 print $node->tagId; # 117
 ```
@@ -513,7 +589,7 @@ print $node->namespace; # svg
 my $tag_ns_id = $node->namespaceId;
 ```
 
-Return node namespace id. See ["CONSTANTS"](#constants) for tag constants list.
+Return node namespace id. See ["NAMESPACES"](#namespaces) for tag constants list.
 
 ```
 $node->namespaceId($tag_id);
@@ -523,7 +599,7 @@ Set new node namespace by id. Allow only for [HTML5::DOM::Element](#html5domelem
 
 ```
 print $node->namespace; # html
-$node->namespaceId(HTML5::DOM::NS_SVG);
+$node->namespaceId(HTML5::DOM->NS_SVG);
 print $node->namespaceId; # 3
 print $node->namespace; # svg
 ```
@@ -547,18 +623,18 @@ my $type = $node->nodeType;
 Return node type. All types:
 
 ```perl
-HTML5::DOM::ELEMENT_NODE                   => 1, 
-HTML5::DOM::ATTRIBUTE_NODE                 => 2,   # not supported
-HTML5::DOM::TEXT_NODE                      => 3, 
-HTML5::DOM::CDATA_SECTION_NODE             => 4,   # not supported
-HTML5::DOM::ENTITY_REFERENCE_NODE          => 5,   # not supported
-HTML5::DOM::ENTITY_NODE                    => 6,   # not supported
-HTML5::DOM::PROCESSING_INSTRUCTION_NODE    => 7,   # not supported
-HTML5::DOM::COMMENT_NODE                   => 8, 
-HTML5::DOM::DOCUMENT_NODE                  => 9, 
-HTML5::DOM::DOCUMENT_TYPE_NODE             => 10, 
-HTML5::DOM::DOCUMENT_FRAGMENT_NODE         => 11, 
-HTML5::DOM::NOTATION_NODE                  => 12   # not supported
+HTML5::DOM->ELEMENT_NODE                   => 1, 
+HTML5::DOM->ATTRIBUTE_NODE                 => 2,   # not supported
+HTML5::DOM->TEXT_NODE                      => 3, 
+HTML5::DOM->CDATA_SECTION_NODE             => 4,   # not supported
+HTML5::DOM->ENTITY_REFERENCE_NODE          => 5,   # not supported
+HTML5::DOM->ENTITY_NODE                    => 6,   # not supported
+HTML5::DOM->PROCESSING_INSTRUCTION_NODE    => 7,   # not supported
+HTML5::DOM->COMMENT_NODE                   => 8, 
+HTML5::DOM->DOCUMENT_NODE                  => 9, 
+HTML5::DOM->DOCUMENT_TYPE_NODE             => 10, 
+HTML5::DOM->DOCUMENT_FRAGMENT_NODE         => 11, 
+HTML5::DOM->NOTATION_NODE                  => 12   # not supported
 ```
 
 Compatible with: [https://developer.mozilla.org/ru/docs/Web/API/Node/nodeType](https://developer.mozilla.org/ru/docs/Web/API/Node/nodeType)
@@ -785,9 +861,9 @@ print $node->html;                     # <div id="test">some   text <b>bold</b><
 $comment->html('<b>new</b>');
 print $comment->html;                  # <div id="test"><b>new</b></div>
 
-my $comment = $tree->createComment("comment text");
+my $comment = $tree->createComment(" comment text ");
 print $comment->html;                  # <!-- comment text -->
-$comment->html('new comment text');
+$comment->html(' new comment text ');
 print $comment->html;                  # <!-- new comment text -->
 
 my $text_node = $tree->createTextNode("plain text >");
@@ -812,7 +888,7 @@ print $text_node->html;                # new&gt;plain&gt;text
     ```perl
     my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
     print $tree->outerHTML;                         # <div id="test">some <b>bold</b> test</div>
-    print $tree->createComment('test')->outerHTML;  # <!-- test -->
+    print $tree->createComment(' test ')->outerHTML;  # <!-- test -->
     print $tree->createTextNode('test')->outerHTML; # test
     ```
 
@@ -828,7 +904,7 @@ print $text_node->html;                # new&gt;plain&gt;text
     ```perl
     my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
     print $tree->innerHTML;                         # some <b>bold</b> test
-    print $tree->createComment('test')->innerHTML;  # <!-- test -->
+    print $tree->createComment(' test ')->innerHTML;  # <!-- test -->
     print $tree->createTextNode('test')->innerHTML; # test
     ```
 
@@ -894,7 +970,7 @@ print $comment->html;                  # &lt;new node conten&gt;
 
 my $comment = $tree->createComment("comment text");
 print $comment->text;                  # comment text
-$comment->text('new comment text');
+$comment->text(' new comment text ');
 print $comment->html;                  # <!-- new comment text -->
 
 my $text_node = $tree->createTextNode("plain text");
@@ -1043,7 +1119,7 @@ Get or set value of node. Only works for non-element nodes, such as  [HTML5::DOM
 my $tree = HTML5::DOM->new->parse('');
 my $comment = $tree->createComment("comment text");
 print $comment->nodeValue;                 # comment text
-$comment->nodeValue('new comment text');
+$comment->nodeValue(' new comment text ');
 print $comment->html;                      # <!-- new comment text -->
 ```
 
@@ -1157,7 +1233,7 @@ print $tree->at('div')->html; # <div><br /><br />some <b>bold</b> text</div>
 
 ```perl
 my $old_node = $old_node->replace($new_node);
-my $old_node = $old_node->parent->replaceChild($old_node, $new_node); # alias
+my $old_node = $old_node->parent->replaceChild($new_node, $old_node); # alias
 ```
 
 Replace node in parent child nodes.
@@ -1479,6 +1555,55 @@ my $node = $node->removeAttr($key); # alias
 ```
 
 Remove attribute.
+
+### className
+
+```perl
+my $classes = $node->className;
+# alias for
+my $classes = $node->attr("class");
+```
+
+### classList
+
+```perl
+my $class_list = $node->classList;
+
+# has class
+my $flag = $class_list->has($class_name);
+my $flag = $class_list->contains($class_name);
+
+# add class
+my $class_list = $class_list->add($class_name);
+my $class_list = $class_list->add($class_name, $class_name1, $class_name2, ...);
+
+# add class
+my $class_list = $class_list->remove($class_name);
+my $class_list = $class_list->remove($class_name, $class_name1, $class_name2, ...);
+
+# toggle class
+my $state = $class_list->toggle($class_name);
+my $state = $class_list->toggle($class_name, $force_state);
+```
+
+Manipulations with classes. Returns [HTML5::DOM::TokenList](#html5domtokenlist).
+
+Similar to [https://developer.mozilla.org/en-US/docs/Web/API/Element/classList](https://developer.mozilla.org/en-US/docs/Web/API/Element/classList)
+
+```perl
+my $tree = HTML5::DOM->new->parse('<div class="red">red</div>')
+my $node = $tree->body->at('.red');
+print $node->has('red');                       # 1
+print $node->has('blue');                      # 0
+$node->add('blue', 'red', 'yellow', 'orange');
+print $node->className;                        # red blue yellow orange
+$node->remove('blue', 'orange');
+print $node->className;                        # red yellow
+print $node->toggle('blue');                   # 1
+print $node->className;                        # red yellow blue
+print $node->toggle('blue');                   # 0
+print $node->className;                        # red yellow
+```
 
 ### at
 
@@ -1802,6 +1927,86 @@ my $text = $collection->text;
 
 Concat &lt;textContent|/textContent> from all items.
 
+# HTML5::DOM::TokenList
+
+Similar to [https://developer.mozilla.org/en-US/docs/Web/API/DOMTokenList](https://developer.mozilla.org/en-US/docs/Web/API/DOMTokenList)
+
+### has
+
+### contains
+
+```perl
+my $flag = $tokens->has($token);
+my $flag = $tokens->contains($token); # alias
+```
+
+Check if token contains in current tokens list.
+
+### add
+
+```perl
+my $tokens = $tokens->add($token);
+my $tokens = $tokens->add($token, $token2, ...);
+```
+
+Add new token (or tokens) to current tokens list. Returns self.
+
+### remove
+
+```perl
+my $tokens = $tokens->add($token);
+my $tokens = $tokens->add($token, $token2, ...);
+```
+
+Remove one or more tokens from current tokens list. Returns self.
+
+### toggle
+
+```perl
+my $state = $tokens->toggle($token);
+my $state = $tokens->toggle($token, $force_state);
+```
+
+- `$token` - specified token name
+- `$force_state` - optional force state.
+
+    If 1 - similar to [add](https://metacpan.org/pod/add)
+
+    If 0 - similar to [remove](https://metacpan.org/pod/remove)
+
+Toggle specified token in current tokens list.
+
+- If token exists - remove it
+- If token not exists - add it
+
+### length
+
+```perl
+my $length = $tokens->length;
+```
+
+Returns tokens count in current list.
+
+### item
+
+```perl
+my $token = $tokens->item($index);
+my $token = $tokens->[$index];
+```
+
+Return token by index.
+
+### each
+
+```perl
+my $token = $tokens->each(sub {
+   my ($token, $index) = @_;
+   print "tokens[$index] is a '$token'\n";
+});
+```
+
+Forach all tokens in list.
+
 # HTML5::DOM::CSS
 
 CSS Parser object
@@ -1859,7 +2064,7 @@ print $selector->text."\n"; # body div.red, body span.blue
 ### ast
 
 ```perl
-my $selector_text = $entry->ast;
+my $ast = $entry->ast;
 ```
 
 Serialize selector to very simple AST format.
@@ -1936,7 +2141,7 @@ print $entry->text."\n"; # body div.red
 ### ast
 
 ```perl
-my $selector_text = $entry->ast;
+my $ast = $entry->ast;
 ```
 
 Serialize entry to very simple AST format.
@@ -2008,7 +2213,7 @@ my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
 Get encoding name by id.
 
 ```
-print HTML5::DOM::Encoding::id2name(HTML5::DOM::Encoding::UTF_8); # UTF-8
+print HTML5::DOM::Encoding::id2name(HTML5::DOM::Encoding->UTF_8); # UTF-8
 ```
 
 ### name2id
@@ -2020,7 +2225,7 @@ my $encoding_id = HTML5::DOM::Encoding::name2id($encoding);
 Get id by name.
 
 ```
-print HTML5::DOM::Encoding::UTF_8;             # 0
+print HTML5::DOM::Encoding->UTF_8;             # 0
 print HTML5::DOM::Encoding::id2name("UTF-8");  # 0
 ```
 
@@ -2038,7 +2243,7 @@ Auto detect text encoding using (in this order):
 
 Returns array with encoding id and new text without BOM, if success. 
 
-If fail, then encoding id equal HTML5::DOM::Encoding::NOT\_DETERMINED.
+If fail, then encoding id equal HTML5::DOM::Encoding->NOT\_DETERMINED.
 
 ```perl
 my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectAuto("ололо");
@@ -2054,7 +2259,7 @@ my $encoding_id = HTML5::DOM::Encoding::detect($text, $max_length = 0);
 
 Detect text encoding. Single method for both [detectRussian](#detectrussian) and [detectUnicode](#detectunicode).
 
-Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
 
 ```perl
 my $encoding_id = HTML5::DOM::Encoding::detect("ололо");
@@ -2070,7 +2275,7 @@ my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
 
 Detect russian text encoding (using lowercase **trigrams**), such as `windows-1251`, `koi8-r`, `iso-8859-5`, `x-mac-cyrillic`, `ibm866`.
 
-Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
 
 ### detectUnicode
 
@@ -2080,7 +2285,7 @@ my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
 
 Detect unicode family text encoding, such as `UTF-8`, `UTF-16LE`, `UTF-16BE`.
 
-Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
 
 ```perl
 # get UTF-16LE data for test
@@ -2100,7 +2305,7 @@ my $encoding_id = HTML5::DOM::Encoding::detectByPrescanStream($text, $max_length
 
 Detect encoding by parsing `<meta>` tags in html.
 
-Returns encoding id, if success. And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
 
 See for more info: [https://html.spec.whatwg.org/multipage/syntax.html#prescan-a-byte-stream-to-determine-its-encoding](https://html.spec.whatwg.org/multipage/syntax.html#prescan-a-byte-stream-to-determine-its-encoding)
 
@@ -2120,9 +2325,9 @@ my $encoding_id = HTML5::DOM::Encoding::detectByCharset($text, $max_length = 0);
 
 Extracting character encoding from string. Find "charset=" and see encoding. Return found raw data.
 
-For example: "text/html; charset=windows-1251". Return HTML5::DOM::Encoding::WINDOWS\_1251
+For example: "text/html; charset=windows-1251". Return HTML5::DOM::Encoding->WINDOWS\_1251
 
-And returns HTML5::DOM::Encoding::NOT\_DETERMINED if fail.
+And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
 
 See for more info: [https://html.spec.whatwg.org/multipage/infrastructure.html#algorithm-for-extracting-a-character-encoding-from-a-meta-element](https://html.spec.whatwg.org/multipage/infrastructure.html#algorithm-for-extracting-a-character-encoding-from-a-meta-element)
 
@@ -2142,13 +2347,293 @@ my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectBomAndCut($text, $max
 
 Returns array with encoding id and new text without BOM. 
 
-If fail, then encoding id equal HTML5::DOM::Encoding::NOT\_DETERMINED.
+If fail, then encoding id equal HTML5::DOM::Encoding->NOT\_DETERMINED.
 
 ```perl
 my ($encoding_id, $new_text) = HTML5::DOM::Encoding::detectBomAndCut("\xEF\xBB\xBFололо");
 my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
 print $encoding; # UTF-8
 print $new_text; # ололо
+```
+
+# NAMESPACES
+
+### Supported namespace names
+
+```
+html, matml, svg, xlink, xml, xmlns
+```
+
+### Supported namespace id constants
+
+```
+HTML5::DOM->NS_UNDEF
+HTML5::DOM->NS_HTML
+HTML5::DOM->NS_MATHML
+HTML5::DOM->NS_SVG
+HTML5::DOM->NS_XLINK
+HTML5::DOM->NS_XML
+HTML5::DOM->NS_XMLNS
+HTML5::DOM->NS_ANY
+HTML5::DOM->NS_LAST_ENTRY
+```
+
+# TAGS
+
+```
+HTML5::DOM->TAG__UNDEF
+HTML5::DOM->TAG__TEXT
+HTML5::DOM->TAG__COMMENT
+HTML5::DOM->TAG__DOCTYPE
+HTML5::DOM->TAG_A
+HTML5::DOM->TAG_ABBR
+HTML5::DOM->TAG_ACRONYM
+HTML5::DOM->TAG_ADDRESS
+HTML5::DOM->TAG_ANNOTATION_XML
+HTML5::DOM->TAG_APPLET
+HTML5::DOM->TAG_AREA
+HTML5::DOM->TAG_ARTICLE
+HTML5::DOM->TAG_ASIDE
+HTML5::DOM->TAG_AUDIO
+HTML5::DOM->TAG_B
+HTML5::DOM->TAG_BASE
+HTML5::DOM->TAG_BASEFONT
+HTML5::DOM->TAG_BDI
+HTML5::DOM->TAG_BDO
+HTML5::DOM->TAG_BGSOUND
+HTML5::DOM->TAG_BIG
+HTML5::DOM->TAG_BLINK
+HTML5::DOM->TAG_BLOCKQUOTE
+HTML5::DOM->TAG_BODY
+HTML5::DOM->TAG_BR
+HTML5::DOM->TAG_BUTTON
+HTML5::DOM->TAG_CANVAS
+HTML5::DOM->TAG_CAPTION
+HTML5::DOM->TAG_CENTER
+HTML5::DOM->TAG_CITE
+HTML5::DOM->TAG_CODE
+HTML5::DOM->TAG_COL
+HTML5::DOM->TAG_COLGROUP
+HTML5::DOM->TAG_COMMAND
+HTML5::DOM->TAG_COMMENT
+HTML5::DOM->TAG_DATALIST
+HTML5::DOM->TAG_DD
+HTML5::DOM->TAG_DEL
+HTML5::DOM->TAG_DETAILS
+HTML5::DOM->TAG_DFN
+HTML5::DOM->TAG_DIALOG
+HTML5::DOM->TAG_DIR
+HTML5::DOM->TAG_DIV
+HTML5::DOM->TAG_DL
+HTML5::DOM->TAG_DT
+HTML5::DOM->TAG_EM
+HTML5::DOM->TAG_EMBED
+HTML5::DOM->TAG_FIELDSET
+HTML5::DOM->TAG_FIGCAPTION
+HTML5::DOM->TAG_FIGURE
+HTML5::DOM->TAG_FONT
+HTML5::DOM->TAG_FOOTER
+HTML5::DOM->TAG_FORM
+HTML5::DOM->TAG_FRAME
+HTML5::DOM->TAG_FRAMESET
+HTML5::DOM->TAG_H1
+HTML5::DOM->TAG_H2
+HTML5::DOM->TAG_H3
+HTML5::DOM->TAG_H4
+HTML5::DOM->TAG_H5
+HTML5::DOM->TAG_H6
+HTML5::DOM->TAG_HEAD
+HTML5::DOM->TAG_HEADER
+HTML5::DOM->TAG_HGROUP
+HTML5::DOM->TAG_HR
+HTML5::DOM->TAG_HTML
+HTML5::DOM->TAG_I
+HTML5::DOM->TAG_IFRAME
+HTML5::DOM->TAG_IMAGE
+HTML5::DOM->TAG_IMG
+HTML5::DOM->TAG_INPUT
+HTML5::DOM->TAG_INS
+HTML5::DOM->TAG_ISINDEX
+HTML5::DOM->TAG_KBD
+HTML5::DOM->TAG_KEYGEN
+HTML5::DOM->TAG_LABEL
+HTML5::DOM->TAG_LEGEND
+HTML5::DOM->TAG_LI
+HTML5::DOM->TAG_LINK
+HTML5::DOM->TAG_LISTING
+HTML5::DOM->TAG_MAIN
+HTML5::DOM->TAG_MAP
+HTML5::DOM->TAG_MARK
+HTML5::DOM->TAG_MARQUEE
+HTML5::DOM->TAG_MENU
+HTML5::DOM->TAG_MENUITEM
+HTML5::DOM->TAG_META
+HTML5::DOM->TAG_METER
+HTML5::DOM->TAG_MTEXT
+HTML5::DOM->TAG_NAV
+HTML5::DOM->TAG_NOBR
+HTML5::DOM->TAG_NOEMBED
+HTML5::DOM->TAG_NOFRAMES
+HTML5::DOM->TAG_NOSCRIPT
+HTML5::DOM->TAG_OBJECT
+HTML5::DOM->TAG_OL
+HTML5::DOM->TAG_OPTGROUP
+HTML5::DOM->TAG_OPTION
+HTML5::DOM->TAG_OUTPUT
+HTML5::DOM->TAG_P
+HTML5::DOM->TAG_PARAM
+HTML5::DOM->TAG_PLAINTEXT
+HTML5::DOM->TAG_PRE
+HTML5::DOM->TAG_PROGRESS
+HTML5::DOM->TAG_Q
+HTML5::DOM->TAG_RB
+HTML5::DOM->TAG_RP
+HTML5::DOM->TAG_RT
+HTML5::DOM->TAG_RTC
+HTML5::DOM->TAG_RUBY
+HTML5::DOM->TAG_S
+HTML5::DOM->TAG_SAMP
+HTML5::DOM->TAG_SCRIPT
+HTML5::DOM->TAG_SECTION
+HTML5::DOM->TAG_SELECT
+HTML5::DOM->TAG_SMALL
+HTML5::DOM->TAG_SOURCE
+HTML5::DOM->TAG_SPAN
+HTML5::DOM->TAG_STRIKE
+HTML5::DOM->TAG_STRONG
+HTML5::DOM->TAG_STYLE
+HTML5::DOM->TAG_SUB
+HTML5::DOM->TAG_SUMMARY
+HTML5::DOM->TAG_SUP
+HTML5::DOM->TAG_SVG
+HTML5::DOM->TAG_TABLE
+HTML5::DOM->TAG_TBODY
+HTML5::DOM->TAG_TD
+HTML5::DOM->TAG_TEMPLATE
+HTML5::DOM->TAG_TEXTAREA
+HTML5::DOM->TAG_TFOOT
+HTML5::DOM->TAG_TH
+HTML5::DOM->TAG_THEAD
+HTML5::DOM->TAG_TIME
+HTML5::DOM->TAG_TITLE
+HTML5::DOM->TAG_TR
+HTML5::DOM->TAG_TRACK
+HTML5::DOM->TAG_TT
+HTML5::DOM->TAG_U
+HTML5::DOM->TAG_UL
+HTML5::DOM->TAG_VAR
+HTML5::DOM->TAG_VIDEO
+HTML5::DOM->TAG_WBR
+HTML5::DOM->TAG_XMP
+HTML5::DOM->TAG_ALTGLYPH
+HTML5::DOM->TAG_ALTGLYPHDEF
+HTML5::DOM->TAG_ALTGLYPHITEM
+HTML5::DOM->TAG_ANIMATE
+HTML5::DOM->TAG_ANIMATECOLOR
+HTML5::DOM->TAG_ANIMATEMOTION
+HTML5::DOM->TAG_ANIMATETRANSFORM
+HTML5::DOM->TAG_CIRCLE
+HTML5::DOM->TAG_CLIPPATH
+HTML5::DOM->TAG_COLOR_PROFILE
+HTML5::DOM->TAG_CURSOR
+HTML5::DOM->TAG_DEFS
+HTML5::DOM->TAG_DESC
+HTML5::DOM->TAG_ELLIPSE
+HTML5::DOM->TAG_FEBLEND
+HTML5::DOM->TAG_FECOLORMATRIX
+HTML5::DOM->TAG_FECOMPONENTTRANSFER
+HTML5::DOM->TAG_FECOMPOSITE
+HTML5::DOM->TAG_FECONVOLVEMATRIX
+HTML5::DOM->TAG_FEDIFFUSELIGHTING
+HTML5::DOM->TAG_FEDISPLACEMENTMAP
+HTML5::DOM->TAG_FEDISTANTLIGHT
+HTML5::DOM->TAG_FEDROPSHADOW
+HTML5::DOM->TAG_FEFLOOD
+HTML5::DOM->TAG_FEFUNCA
+HTML5::DOM->TAG_FEFUNCB
+HTML5::DOM->TAG_FEFUNCG
+HTML5::DOM->TAG_FEFUNCR
+HTML5::DOM->TAG_FEGAUSSIANBLUR
+HTML5::DOM->TAG_FEIMAGE
+HTML5::DOM->TAG_FEMERGE
+HTML5::DOM->TAG_FEMERGENODE
+HTML5::DOM->TAG_FEMORPHOLOGY
+HTML5::DOM->TAG_FEOFFSET
+HTML5::DOM->TAG_FEPOINTLIGHT
+HTML5::DOM->TAG_FESPECULARLIGHTING
+HTML5::DOM->TAG_FESPOTLIGHT
+HTML5::DOM->TAG_FETILE
+HTML5::DOM->TAG_FETURBULENCE
+HTML5::DOM->TAG_FILTER
+HTML5::DOM->TAG_FONT_FACE
+HTML5::DOM->TAG_FONT_FACE_FORMAT
+HTML5::DOM->TAG_FONT_FACE_NAME
+HTML5::DOM->TAG_FONT_FACE_SRC
+HTML5::DOM->TAG_FONT_FACE_URI
+HTML5::DOM->TAG_FOREIGNOBJECT
+HTML5::DOM->TAG_G
+HTML5::DOM->TAG_GLYPH
+HTML5::DOM->TAG_GLYPHREF
+HTML5::DOM->TAG_HKERN
+HTML5::DOM->TAG_LINE
+HTML5::DOM->TAG_LINEARGRADIENT
+HTML5::DOM->TAG_MARKER
+HTML5::DOM->TAG_MASK
+HTML5::DOM->TAG_METADATA
+HTML5::DOM->TAG_MISSING_GLYPH
+HTML5::DOM->TAG_MPATH
+HTML5::DOM->TAG_PATH
+HTML5::DOM->TAG_PATTERN
+HTML5::DOM->TAG_POLYGON
+HTML5::DOM->TAG_POLYLINE
+HTML5::DOM->TAG_RADIALGRADIENT
+HTML5::DOM->TAG_RECT
+HTML5::DOM->TAG_SET
+HTML5::DOM->TAG_STOP
+HTML5::DOM->TAG_SWITCH
+HTML5::DOM->TAG_SYMBOL
+HTML5::DOM->TAG_TEXT
+HTML5::DOM->TAG_TEXTPATH
+HTML5::DOM->TAG_TREF
+HTML5::DOM->TAG_TSPAN
+HTML5::DOM->TAG_USE
+HTML5::DOM->TAG_VIEW
+HTML5::DOM->TAG_VKERN
+HTML5::DOM->TAG_MATH
+HTML5::DOM->TAG_MACTION
+HTML5::DOM->TAG_MALIGNGROUP
+HTML5::DOM->TAG_MALIGNMARK
+HTML5::DOM->TAG_MENCLOSE
+HTML5::DOM->TAG_MERROR
+HTML5::DOM->TAG_MFENCED
+HTML5::DOM->TAG_MFRAC
+HTML5::DOM->TAG_MGLYPH
+HTML5::DOM->TAG_MI
+HTML5::DOM->TAG_MLABELEDTR
+HTML5::DOM->TAG_MLONGDIV
+HTML5::DOM->TAG_MMULTISCRIPTS
+HTML5::DOM->TAG_MN
+HTML5::DOM->TAG_MO
+HTML5::DOM->TAG_MOVER
+HTML5::DOM->TAG_MPADDED
+HTML5::DOM->TAG_MPHANTOM
+HTML5::DOM->TAG_MROOT
+HTML5::DOM->TAG_MROW
+HTML5::DOM->TAG_MS
+HTML5::DOM->TAG_MSCARRIES
+HTML5::DOM->TAG_MSCARRY
+HTML5::DOM->TAG_MSGROUP
+HTML5::DOM->TAG_MSLINE
+HTML5::DOM->TAG_MSPACE
+HTML5::DOM->TAG_MSQRT
+HTML5::DOM->TAG_MSROW
+HTML5::DOM->TAG_MSTACK
+HTML5::DOM->TAG_MSTYLE
+HTML5::DOM->TAG_MSUB
+HTML5::DOM->TAG_MSUP
+HTML5::DOM->TAG_MSUBSUP
+HTML5::DOM->TAG__END_OF_FILE
+HTML5::DOM->TAG_LAST_ENTRY
 ```
 
 # ENCODINGS
@@ -2168,49 +2653,49 @@ UTF-8, UTF-16BE, UTF-16LE, KOI8-R, KOI8-U
 ### Supported encoding id consts
 
 ```
-HTML5::DOM::Encoding::DEFAULT
-HTML5::DOM::Encoding::AUTO
-HTML5::DOM::Encoding::NOT_DETERMINED
-HTML5::DOM::Encoding::UTF_8
-HTML5::DOM::Encoding::UTF_16LE
-HTML5::DOM::Encoding::UTF_16BE
-HTML5::DOM::Encoding::X_USER_DEFINED
-HTML5::DOM::Encoding::BIG5
-HTML5::DOM::Encoding::EUC_JP
-HTML5::DOM::Encoding::EUC_KR
-HTML5::DOM::Encoding::GB18030
-HTML5::DOM::Encoding::GBK
-HTML5::DOM::Encoding::IBM866
-HTML5::DOM::Encoding::ISO_2022_JP
-HTML5::DOM::Encoding::ISO_8859_10
-HTML5::DOM::Encoding::ISO_8859_13
-HTML5::DOM::Encoding::ISO_8859_14
-HTML5::DOM::Encoding::ISO_8859_15
-HTML5::DOM::Encoding::ISO_8859_16
-HTML5::DOM::Encoding::ISO_8859_2
-HTML5::DOM::Encoding::ISO_8859_3
-HTML5::DOM::Encoding::ISO_8859_4
-HTML5::DOM::Encoding::ISO_8859_5
-HTML5::DOM::Encoding::ISO_8859_6
-HTML5::DOM::Encoding::ISO_8859_7
-HTML5::DOM::Encoding::ISO_8859_8
-HTML5::DOM::Encoding::ISO_8859_8_I
-HTML5::DOM::Encoding::KOI8_R
-HTML5::DOM::Encoding::KOI8_U
-HTML5::DOM::Encoding::MACINTOSH
-HTML5::DOM::Encoding::SHIFT_JIS
-HTML5::DOM::Encoding::WINDOWS_1250
-HTML5::DOM::Encoding::WINDOWS_1251
-HTML5::DOM::Encoding::WINDOWS_1252
-HTML5::DOM::Encoding::WINDOWS_1253
-HTML5::DOM::Encoding::WINDOWS_1254
-HTML5::DOM::Encoding::WINDOWS_1255
-HTML5::DOM::Encoding::WINDOWS_1256
-HTML5::DOM::Encoding::WINDOWS_1257
-HTML5::DOM::Encoding::WINDOWS_1258
-HTML5::DOM::Encoding::WINDOWS_874
-HTML5::DOM::Encoding::X_MAC_CYRILLIC
-HTML5::DOM::Encoding::LAST_ENTRY
+HTML5::DOM::Encoding->DEFAULT
+HTML5::DOM::Encoding->AUTO
+HTML5::DOM::Encoding->NOT_DETERMINED
+HTML5::DOM::Encoding->UTF_8
+HTML5::DOM::Encoding->UTF_16LE
+HTML5::DOM::Encoding->UTF_16BE
+HTML5::DOM::Encoding->X_USER_DEFINED
+HTML5::DOM::Encoding->BIG5
+HTML5::DOM::Encoding->EUC_JP
+HTML5::DOM::Encoding->EUC_KR
+HTML5::DOM::Encoding->GB18030
+HTML5::DOM::Encoding->GBK
+HTML5::DOM::Encoding->IBM866
+HTML5::DOM::Encoding->ISO_2022_JP
+HTML5::DOM::Encoding->ISO_8859_10
+HTML5::DOM::Encoding->ISO_8859_13
+HTML5::DOM::Encoding->ISO_8859_14
+HTML5::DOM::Encoding->ISO_8859_15
+HTML5::DOM::Encoding->ISO_8859_16
+HTML5::DOM::Encoding->ISO_8859_2
+HTML5::DOM::Encoding->ISO_8859_3
+HTML5::DOM::Encoding->ISO_8859_4
+HTML5::DOM::Encoding->ISO_8859_5
+HTML5::DOM::Encoding->ISO_8859_6
+HTML5::DOM::Encoding->ISO_8859_7
+HTML5::DOM::Encoding->ISO_8859_8
+HTML5::DOM::Encoding->ISO_8859_8_I
+HTML5::DOM::Encoding->KOI8_R
+HTML5::DOM::Encoding->KOI8_U
+HTML5::DOM::Encoding->MACINTOSH
+HTML5::DOM::Encoding->SHIFT_JIS
+HTML5::DOM::Encoding->WINDOWS_1250
+HTML5::DOM::Encoding->WINDOWS_1251
+HTML5::DOM::Encoding->WINDOWS_1252
+HTML5::DOM::Encoding->WINDOWS_1253
+HTML5::DOM::Encoding->WINDOWS_1254
+HTML5::DOM::Encoding->WINDOWS_1255
+HTML5::DOM::Encoding->WINDOWS_1256
+HTML5::DOM::Encoding->WINDOWS_1257
+HTML5::DOM::Encoding->WINDOWS_1258
+HTML5::DOM::Encoding->WINDOWS_874
+HTML5::DOM::Encoding->X_MAC_CYRILLIC
+HTML5::DOM::Encoding->LAST_ENTRY
 ```
 
 # PARSER OPTIONS
@@ -2285,3 +2770,23 @@ See [detectByPrescanStream](#detectbyprescanstream).
 Allow use detecding BOM to determine input HTML encoding. (default 1)
 
 See [detectBomAndCut](#detectbomandcut).
+
+# BUGS
+
+[https://github.com/Azq2/perl-html5-dom/issues](https://github.com/Azq2/perl-html5-dom/issues)
+
+# SEE ALSO
+
+- [HTML::MyHTML](https://metacpan.org/pod/HTML::MyHTML) - more low-level myhtml bindings.
+- [Mojo::DOM](https://metacpan.org/pod/Mojo::DOM) - pure perl HTML5 DOM library with CSS selectors. 
+
+# AUTHOR
+
+Kirill Zhumarin <kirill.zhumarin@gmail.com>
+
+# LICENSE
+
+- HTML5::DOM - [MIT](https://github.com/Azq2/perl-html5-dom/blob/master/LICENSE)
+- Modest - [LGPL 2.1](https://github.com/lexborisov/Modest/blob/master/LICENSE)
+- MyHTML - [LGPL 2.1](https://github.com/lexborisov/myhtml/blob/master/LICENSE)
+- MyCSS - [LGPL 2.1](https://github.com/lexborisov/mycss/blob/master/LICENSE)

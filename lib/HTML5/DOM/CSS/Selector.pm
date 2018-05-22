@@ -11,7 +11,7 @@ use overload
 	fallback	=> 1;
 
 sub new {
-	my ($class, $text) = shift;
+	my ($class, $text) = @_;
 	return HTML5::DOM::CSS->new->parseSelector($text);
 }
 

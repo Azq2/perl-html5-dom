@@ -1473,6 +1473,7 @@ DESTROY(HTML5::DOM self)
 CODE:
 	DOM_GC_TRACE("DOM::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	html5_dom_parser_free(self);
+	safefree(self);
 
 
 
@@ -2528,7 +2529,7 @@ CODE:
 	
 	myhtml_tree_node_remove(old_node);
 	
-	RETVAL = SvREFCNT_inc(ST(0));
+	RETVAL = (ix == 1 ? node_to_sv(old_node) : SvREFCNT_inc(ST(0)));
 OUTPUT:
 	RETVAL
 
@@ -2984,11 +2985,6 @@ CODE:
 	const char *query_str = SvPV_const(query, query_len);
 	
 	mycss_selectors_list_t *list = mycss_selectors_parse(mycss_entry_selectors(self->entry), MyENCODING_UTF_8, query_str, query_len, &status);
-	if (list == NULL) {
-		if (list)
-			mycss_selectors_list_destroy(mycss_entry_selectors(self->entry), list, true);
-		sub_croak(cv, "bad selector: %s", query_str);
-	}
 	
 	DOM_GC_TRACE("DOM::CSS::Selector::NEW");
 	html5_css_selector_t *selector = (html5_css_selector_t *) safemalloc(sizeof(html5_css_selector_t));
@@ -3019,7 +3015,8 @@ SV *
 text(HTML5::DOM::CSS::Selector self)
 CODE:
 	RETVAL = newSVpv("", 0);
-	mycss_selectors_serialization_list(mycss_entry_selectors(self->parser->entry), self->list, sv_serialization_callback, RETVAL);
+	if (self->list)
+		mycss_selectors_serialization_list(mycss_entry_selectors(self->parser->entry), self->list, sv_serialization_callback, RETVAL);
 OUTPUT:
 	RETVAL
 
@@ -3027,7 +3024,7 @@ OUTPUT:
 bool
 valid(HTML5::DOM::CSS::Selector self)
 CODE:
-	RETVAL = !(self->list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD);
+	RETVAL = self->list ? !(self->list->flags & MyCSS_SELECTORS_FLAGS_SELECTOR_BAD) : 0;
 OUTPUT:
 	RETVAL
 
@@ -3036,7 +3033,8 @@ SV *
 ast(HTML5::DOM::CSS::Selector self)
 CODE:
 	AV *result = newAV();
-	html5_dom_css_serialize_selector(self->list, result);
+	if (self->list)
+		html5_dom_css_serialize_selector(self->list, result);
 	RETVAL = newRV_noinc((SV *) result);
 OUTPUT:
 	RETVAL
@@ -3045,7 +3043,7 @@ OUTPUT:
 int
 length(HTML5::DOM::CSS::Selector self)
 CODE:
-	RETVAL = self->list->entries_list_length;
+	RETVAL = self->list ? self->list->entries_list_length : 0;
 OUTPUT:
 	RETVAL
 
@@ -3053,7 +3051,7 @@ OUTPUT:
 SV *
 entry(HTML5::DOM::CSS::Selector self, int index)
 CODE:
-	if (index < 0 || index >= self->list->entries_list_length) {
+	if (!self->list || index < 0 || index >= self->list->entries_list_length) {
 		RETVAL = &PL_sv_undef;
 	} else {
 		DOM_GC_TRACE("DOM::CSS::Selector::Entry::NEW");
@@ -3071,7 +3069,8 @@ void
 DESTROY(HTML5::DOM::CSS::Selector self)
 CODE:
 	DOM_GC_TRACE("DOM::CSS::Selector::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
-	mycss_selectors_list_destroy(mycss_entry_selectors(self->parser->entry), self->list, true);
+	if (self->list)
+		mycss_selectors_list_destroy(mycss_entry_selectors(self->parser->entry), self->list, true);
 	SvREFCNT_dec(self->parent);
 	safefree(self);
 
