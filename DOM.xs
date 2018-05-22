@@ -2344,8 +2344,10 @@ CODE:
 	if (html5_dom_is_fragment(new_node)) {
 		myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
 		while (fragment_child) {
+			myhtml_tree_node_t *next = myhtml_node_next(fragment_child);
+			myhtml_tree_node_remove(fragment_child);
 			myhtml_tree_node_insert_before(reference_node, fragment_child);
-			fragment_child = myhtml_node_next(fragment_child);
+			fragment_child = next;
 		}
 	} else {
 		myhtml_tree_node_insert_before(reference_node, new_node);
@@ -2393,8 +2395,10 @@ CODE:
 	if (html5_dom_is_fragment(new_node)) {
 		myhtml_tree_node_t *fragment_child = myhtml_node_last_child(new_node);
 		while (fragment_child) {
+			myhtml_tree_node_t *next = myhtml_node_prev(fragment_child);
+			myhtml_tree_node_remove(fragment_child);
 			myhtml_tree_node_insert_after(reference_node, fragment_child);
-			fragment_child = myhtml_node_prev(fragment_child);
+			fragment_child = next;
 		}
 	} else {
 		myhtml_tree_node_insert_after(reference_node, new_node);
@@ -2427,8 +2431,10 @@ CODE:
 	if (html5_dom_is_fragment(child)) {
 		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
 		while (fragment_child) {
+			myhtml_tree_node_t *next = myhtml_node_next(fragment_child);
+			myhtml_tree_node_remove(fragment_child);
 			myhtml_tree_node_add_child(self, fragment_child);
-			fragment_child = myhtml_node_next(fragment_child);
+			fragment_child = next;
 		}
 	} else {
 		myhtml_tree_node_add_child(self, child);
@@ -2462,13 +2468,14 @@ CODE:
 	if (html5_dom_is_fragment(child)) {
 		myhtml_tree_node_t *fragment_child = myhtml_node_child(child);
 		while (fragment_child) {
-			myhtml_tree_node_add_child(self, fragment_child);
+			myhtml_tree_node_t *next = myhtml_node_next(fragment_child);
+			myhtml_tree_node_remove(fragment_child);
 			if (first_node) {
 				myhtml_tree_node_insert_before(first_node, fragment_child);
 			} else {
 				myhtml_tree_node_add_child(self, fragment_child);
 			}
-			fragment_child = myhtml_node_next(fragment_child);
+			fragment_child = next;
 		}
 	} else {
 		if (first_node) {
@@ -2519,8 +2526,10 @@ CODE:
 		while (fragment_child) {
 			myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
 			while (fragment_child) {
+				myhtml_tree_node_t *next = myhtml_node_next(fragment_child);
+				myhtml_tree_node_remove(fragment_child);
 				myhtml_tree_node_insert_before(old_node, fragment_child);
-				fragment_child = myhtml_node_next(fragment_child);
+				fragment_child = next;
 			}
 		}
 	} else {
@@ -3096,6 +3105,22 @@ CODE:
 	AV *result = newAV();
 	html5_dom_css_serialize_entry(self->selector->list, self->list->entry, result);
 	RETVAL = newRV_noinc((SV *) result);
+OUTPUT:
+	RETVAL
+
+# Return pseudo-element name
+SV *
+pseudoElement(HTML5::DOM::CSS::Selector::Entry self)
+CODE:
+	mycss_selectors_entry_t *entry = self->list->entry;
+	RETVAL = &PL_sv_undef;
+	while (entry) {
+		if (entry->type == MyCSS_SELECTORS_TYPE_PSEUDO_ELEMENT) {
+			RETVAL = newSVpv(entry->key->data ? entry->key->data : "", entry->key->length);
+			break;
+		}
+		entry = entry->next;
+	}
 OUTPUT:
 	RETVAL
 

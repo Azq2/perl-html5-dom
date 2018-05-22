@@ -1291,6 +1291,11 @@ ok(HTML5::DOM::CSS::Selector->new('')->valid == 0, 'css selector valid=0');
 ok(HTML5::DOM::CSS::Selector->new('(*&*^&**%%*(')->valid == 0, 'css selector valid=0');
 ok(HTML5::DOM::CSS::Selector->new('div[attr]')->valid == 1, 'css selector valid=1');
 
+# pseudoElement
+ok(HTML5::DOM::CSS::Selector->new('div:after')->entry(0)->pseudoElement eq 'after', 'css selector entry pseudoElement');
+ok(!defined HTML5::DOM::CSS::Selector->new('div')->entry(0)->pseudoElement, 'css selector entry pseudoElement (undef)');
+
+
 ######################################################################################
 # HTML5::DOM::Encoding
 ######################################################################################

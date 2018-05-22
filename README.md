@@ -2138,6 +2138,21 @@ my $entry = $selector->entry(0);
 print $entry->text."\n"; # body div.red
 ```
 
+### pseudoElement
+
+```perl
+my $pseudo_name = $entry->pseudoElement;
+```
+
+Return pseudo-element name for entry.
+
+```perl
+my $css = HTML5::DOM::CSS->new;
+my $selector = $css->parseSelector('div::after');
+my $entry = $selector->entry(0);
+print $entry->pseudoElement."\n"; # after
+```
+
 ### ast
 
 ```perl

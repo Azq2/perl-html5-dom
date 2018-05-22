@@ -45,6 +45,10 @@ sub TIEHASH {
 	bless \shift, $p
 }
 
+sub DELETE {
+	${shift()}->removeAttr(shift);
+}
+
 sub FETCH {
 	${shift()}->attr(shift);
 }
