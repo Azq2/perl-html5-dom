@@ -980,7 +980,7 @@ for my $test (@$childrens_tests) {
 	
 	ok($collection->length == scalar(@{$test->{results}}), "$method: check length");
 	
-	for my $index (keys @{$test->{results}}) {
+	for (my $index = 0; $index < scalar(@{$test->{results}}); ++$index) {
 		my $child = $test->{results}->[$index];
 		my $element = $collection->[$index];
 		ok(ref($element) eq $child->[0], "$method: check result ref");
