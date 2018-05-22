@@ -1912,7 +1912,7 @@ OUTPUT:
 
 # Non-recursive html serialization (example: <div id="some_id">)
 SV *
-nodeHtml(HTML5::DOM::Node self, SV *text = NULL)
+nodeHtml(HTML5::DOM::Node self)
 CODE:
 	RETVAL = newSVpv("", 0);
 	myhtml_serialization_node_callback(self, sv_serialization_callback, RETVAL);
@@ -2631,6 +2631,7 @@ CODE:
 #################################################################
 # HTML5::DOM::Element (extends Node)
 #################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Element
 # Find by css query
 SV *
 find(HTML5::DOM::Element self, SV *query, SV *combinator = NULL)

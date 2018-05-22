@@ -248,14 +248,14 @@ ok($parser->parse('<!DOCTYPE html><div></div>')->compatMode eq 'CSS1Compat', 'co
 my @node_methods = qw(
 	tag nodeName tagId namespace namespaceId tree nodeType next nextElementSibling
 	prev previousElementSibling nextNode nextSibling prevNode previousSibling 
-	first firstElementChild last lastElementChild firstNode firstChild 
-	lastNode lastChild html innerHTML outerHTML text innerText outerText textContent
+	html innerHTML outerHTML text innerText outerText textContent
 	nodeHtml nodeValue data isConnected parent parentElement document ownerDocument
 	append appendChild prepend prependChild replace replaceChild before insertBefore
 	after insertAfter remove removeChild clone cloneNode void selfClosed position
 	isSameNode wait parsed
 );
 my @element_methods = qw(
+	first firstElementChild last lastElementChild firstNode firstChild lastNode lastChild
 	children childrenNode childNodes attr removeAttr getAttribute setAttribute
 	removeAttribute at querySelector find querySelectorAll findId getElementById
 	findTag getElementsByTagName findClass getElementsByClassName findAttr
@@ -439,5 +439,234 @@ for my $test (@$siblings_tests) {
 		}
 	}
 }
+
+$tree = HTML5::DOM->new->parse('
+   <ul><!--
+        first comment -->
+       <li>Linux</li>
+       <li>OSX</li>
+       <li>Windows</li>
+       <!-- last comment 
+   --></ul>
+');
+
+# test all first/last navigators
+my $first_last_tests = [
+	{
+		methods	=> [qw|first firstElementChild|], 
+		results	=> [
+			['HTML5::DOM::Element',	qr/^Linux$/], 
+			['',					undef]
+		]
+	}, 
+	{
+		methods	=> [qw|last lastElementChild|], 
+		results	=> [
+			['HTML5::DOM::Element',	qr/^Windows$/], 
+			['',					undef], 
+		]
+	}, 
+	{
+		methods	=> [qw|firstNode firstChild|], 
+		results	=> [
+			['HTML5::DOM::Comment',	qr/^\s+first comment\s+$/]
+		]
+	}, 
+	{
+		methods	=> [qw|lastNode lastChild|], 
+		results	=> [
+			['HTML5::DOM::Comment',	qr/^\s+last comment\s+$/]
+		]
+	}
+];
+
+for my $test (@$first_last_tests) {
+	my $ul = $tree->at('ul');
+	ok($ul->tag eq 'ul', "first/last test: check test element");
+	
+	for my $method (@{$test->{methods}}) {
+		my $next = $ul->$method;
+		my @chain = ($method);
+		for my $result (@{$test->{results}}) {
+			ok(ref($next) eq $result->[0], join(" > ", @chain)." check ref .. ".ref($next));
+			
+			if (defined $result->[1]) {
+				ok($next->text =~ $result->[1], join(" > ", @chain)." check value");
+			} else {
+				ok(!defined $result->[1], join(" > ", @chain)." (undef)");
+			}
+			
+			last if (!$next || !$next->can($method));
+			
+			$next = $next->$method;
+			push @chain, $method;
+		}
+	}
+}
+
+# html and text serialzation
+$tree = HTML5::DOM->new->parse('<body aaa="bb"><b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;&quot;</div></b></body>');
+
+my $html_serialize = {
+	'html'			=> '<body aaa="bb"><b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;"</div></b></body>', 
+	'innerHTML'		=> '<b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;"</div></b>', 
+	'outerHTML'		=> '<body aaa="bb"><b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;"</div></b></body>', 
+	'nodeHtml'		=> '<body aaa="bb">', 
+	'text'			=> '       ololo ???  ><"', 
+	'innerText'		=> "ololo ???\n ><\"\n", 
+	'outerText'		=> "ololo ???\n ><\"\n", 
+	'textContent'	=> '       ololo ???  ><"', 
+	'nodeValue'		=> undef, 
+	'data'			=> undef
+};
+
+for my $method (keys %$html_serialize) {
+	if (defined $html_serialize->{$method}) {
+		ok($tree->body->$method eq $html_serialize->{$method}, "$method serialization");
+	} else {
+		ok(!defined $tree->body->$method, "$method serialization (undef)");
+	}
+}
+
+# html/text fragments
+my $html_serialize = [
+	{
+		method	=> 'html', 
+		html	=> '<b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;&quot;</div></b>', 
+		body	=> '<body><div id="test"><b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;"</div></b></div></body>'
+	}, 
+	{
+		method	=> 'innerHTML', 
+		html	=> '<b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;&quot;</div></b>', 
+		body	=> '<body><div id="test"><b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;"</div></b></div></body>'
+	}, 
+	{
+		method	=> 'outerHTML', 
+		html	=> '<b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;&quot;</div></b>', 
+		body	=> '<body><b>      <!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;"</div></b></body>'
+	}, 
+	{
+		method	=> 'text', 
+		html	=> "\nololo   >^_^<   trololo\n", 
+		body	=> "<body><div id=\"test\">\nololo   &gt;^_^&lt;   trololo\n</div></body>"
+	}, 
+	{
+		method	=> 'textContent', 
+		html	=> "\nololo   >^_^<   trololo\n", 
+		body	=> "<body><div id=\"test\">\nololo   &gt;^_^&lt;   trololo\n</div></body>"
+	}, 
+	{
+		method	=> 'innerText', 
+		html	=> "\nololo   >^_^<   trololo\n", 
+		body	=> "<body><div id=\"test\"><br>ololo   &gt;^_^&lt;   trololo<br></div></body>"
+	}, 
+	{
+		method	=> 'outerText', 
+		html	=> "\nololo   >^_^<   trololo\n", 
+		body	=> "<body><br>ololo   &gt;^_^&lt;   trololo<br></body>"
+	}
+];
+
+for my $test (@$html_serialize) {
+	$tree = HTML5::DOM->new->parse('<div id="test"><b><!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;&quot;</div></b></div>');
+	
+	my $method = $test->{method};
+	my $method2 = $test->{method2};
+	my $test_el = $tree->at('#test');
+	
+	my $ret = $test_el->$method($test->{html});
+	isa_ok($ret, "HTML5::DOM::Node");
+	ok($ret == $test_el, "$method return test: '".$tree->body->html."'");
+	ok($tree->body->html eq $test->{body}, "$method content test");
+}
+
+# isConnected
+my $node_test_connected = $tree->createElement('ololo');
+ok($node_test_connected->isConnected == 0, 'isConnected == 0');
+$tree->body->append($node_test_connected);
+ok($node_test_connected->isConnected == 1, 'isConnected == 1');
+
+# parent
+for my $method (qw|parent parentElement|) {
+	ok($node_test_connected->$method == $tree->body, "$method check");
+}
+
+# document + ownerDocument
+for my $method (qw|document ownerDocument|) {
+	ok($node_test_connected->$method == $tree->document, "$method check");
+}
+
+# clone
+$tree = HTML5::DOM->new->parse('<div id="test"><b><!-- super cool new comment --> ololo ??? <div class="red">&nbsp;&gt;&lt;&quot;</div></b></div>');
+
+my $clone_tests = [
+	{
+		src		=> $tree->at('#test'), 
+		html	=> '<div id="test"></div>', 
+		deep	=> 0
+	}, 
+	{
+		src		=> $tree->at('#test'), 
+		html	=> $tree->at('#test')->html, 
+		deep	=> 1
+	}, 
+	{
+		src		=> $tree->createComment(" comment >^_^< "), 
+		html	=> $tree->createComment(" comment >^_^< ")->html, 
+		deep	=> 0
+	}, 
+	{
+		src		=> $tree->createComment(" comment >^_^< "), 
+		html	=> $tree->createComment(" comment >^_^< ")->html, 
+		deep	=> 1
+	}, 
+	{
+		src		=> $tree->createTextNode(" text >^_^< "), 
+		html	=> $tree->createTextNode(" text >^_^< ")->html, 
+		deep	=> 0
+	}, 
+	{
+		src		=> $tree->createTextNode(" text >^_^< "), 
+		html	=> $tree->createTextNode(" text >^_^< ")->html, 
+		deep	=> 1
+	}, 
+];
+
+my $new_tree = HTML5::DOM->new->parse('<div id="test"></div>');
+
+for my $copy_dst_tree (($tree, $new_tree)) {
+	for my $method (qw|clone cloneNode|) {
+		for my $test (@$clone_tests) {
+			my $clone = $test->{src}->$method($test->{deep}, $copy_dst_tree);
+			ok($copy_dst_tree == $clone->tree, ref($test->{src})."->$method(".$test->{deep}.") tree");
+			ok($clone != $test->{src}, ref($test->{src})."->$method(".$test->{deep}.") eq");
+			ok($clone->html eq $test->{html}, ref($test->{src})."$method(".$test->{deep}.") content");
+		}
+	}
+}
+
+# void
+ok($tree->createElement('br')->void == 1, 'void == 1');
+ok($tree->createElement('div')->void == 0, 'void == 0');
+
+# selfClosed
+ok($tree->parseFragment('<meta />')->first->selfClosed == 1, 'selfClosed == 1');
+ok($tree->parseFragment('<meta></meta>')->first->selfClosed == 0, 'selfClosed == 0');
+
+# wait
+my $test_pos_buff = '<div><div id="position"></div></div>';
+$tree = HTML5::DOM->new->parse($test_pos_buff);
+isa_ok($tree->body->wait, "HTML5::DOM::Node");
+ok($tree->body->parsed == 1, "parsed");
+
+# position
+my $pos = $tree->at('#position')->position;
+ok(ref($pos) eq 'HASH', 'position is HASH');
+ok(substr($test_pos_buff, $pos->{raw_begin}, $pos->{raw_length}) eq 'div', 'position raw begin/length');
+ok(substr($test_pos_buff, $pos->{element_begin}, $pos->{element_length}) eq '<div id="position">', 'position element begin/length');
+
+# isSameNode
+ok($tree->body->isSameNode($tree->body) == 1, 'isSameNode == 1');
+ok($tree->body->isSameNode($tree->head) == 0, 'isSameNode == 0');
 
 done_testing;

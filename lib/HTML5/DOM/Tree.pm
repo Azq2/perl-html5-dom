@@ -14,4 +14,3 @@ sub text { shift->document->text(@_) }
 sub html { shift->document->html(@_) }
 
 1;
-__END__

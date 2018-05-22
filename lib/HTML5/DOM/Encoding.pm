@@ -55,4 +55,3 @@ use constant {
 # </MyENCODING_const>
 
 1;
-__END__
