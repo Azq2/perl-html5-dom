@@ -5,6 +5,7 @@
 L<HTML5::DOM|https://metacpan.org/pod/HTML5::DOM> - Super fast html5 DOM library with css selectors (based on Modest/MyHTML)
 
 =for html <a href="https://travis-ci.org/Azq2/perl-html5-dom"><img src="https://travis-ci.org/Azq2/perl-html5-dom.svg?branch=master"></a>
+<a href="https://metacpan.org/pod/HTML5::DOM"><img src="https://img.shields.io/cpan/v/HTML5-DOM.svg"></a>
 
 =head1 SYNOPSIS
 

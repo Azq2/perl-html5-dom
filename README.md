@@ -4,6 +4,7 @@
 
 <div>
     <a href="https://travis-ci.org/Azq2/perl-html5-dom"><img src="https://travis-ci.org/Azq2/perl-html5-dom.svg?branch=master"></a>
+    <a href="https://metacpan.org/pod/HTML5::DOM"><img src="https://img.shields.io/cpan/v/HTML5-DOM.svg"></a>
 </div>
 
 # SYNOPSIS
