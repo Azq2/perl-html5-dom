@@ -1826,6 +1826,47 @@ my $collection = HTML5::DOM::Collection->new($nodes);
 
 Creates new collection from `$nodes` (reference to array with [HTML5::DOM::Node](#html5domnode)).
 
+### each
+
+```perl
+my $collection = $collection->each(sub {
+   my ($node, $index) = @_;
+   print "node[$index] is a '$node'\n";
+});
+```
+
+Forach all nodes in collection.
+
+### map
+
+```perl
+my $result = $collection->map(sub {
+   my ($token, $index) = @_;
+   return $node->tag." => $index";
+});
+```
+
+Apply callback for each node in collection. Returns new array from results.
+
+```perl
+my $result = $collection->map($method, @args);
+```
+
+Call method for each node in collection. Returns new [HTML5::DOM::Collection](#html5domcollection) from results.
+
+Example:
+
+```perl
+# set text 'test!' for all nodes
+my $result = $collection->map('text', 'test!');
+
+# get all tag names as array
+my $result = $collection->map('tag');
+
+# remove all nodes in collection
+$collection->map('remove');
+```
+
 ### add
 
 ```perl

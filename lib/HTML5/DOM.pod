@@ -1715,6 +1715,39 @@ CSS Parser object
 
 Creates new collection from C<$nodes> (reference to array with L<HTML5::DOM::Node|/HTML5::DOM::Node>).
 
+=head3 each
+
+ my $collection = $collection->each(sub {
+    my ($node, $index) = @_;
+    print "node[$index] is a '$node'\n";
+ });
+
+Forach all nodes in collection.
+
+=head3 map
+
+ my $result = $collection->map(sub {
+    my ($token, $index) = @_;
+    return $node->tag." => $index";
+ });
+
+Apply callback for each node in collection. Returns new array from results.
+
+ my $result = $collection->map($method, @args);
+
+Call method for each node in collection. Returns new L<HTML5::DOM::Collection|/HTML5::DOM::Collection> from results.
+
+Example:
+
+ # set text 'test!' for all nodes
+ my $result = $collection->map('text', 'test!');
+
+ # get all tag names as array
+ my $result = $collection->map('tag');
+
+ # remove all nodes in collection
+ $collection->map('remove');
+
 =head3 add
 
  my $collection = $collection->add($node);

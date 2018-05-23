@@ -2029,6 +2029,7 @@ CODE:
 			} else {
 				// fragment now is html node, why not?
 				fragment->tag_id = MyHTML_TAG_HTML;
+				myhtml_tree_node_remove(fragment);
 				myhtml_tree_node_add_child(self, fragment);
 			}
 		} else { // same as nodeValue, for user friendly API
@@ -2350,6 +2351,7 @@ CODE:
 			fragment_child = next;
 		}
 	} else {
+		myhtml_tree_node_remove(new_node);
 		myhtml_tree_node_insert_before(reference_node, new_node);
 	}
 	
@@ -2401,6 +2403,7 @@ CODE:
 			fragment_child = next;
 		}
 	} else {
+		myhtml_tree_node_remove(new_node);
 		myhtml_tree_node_insert_after(reference_node, new_node);
 	}
 	
@@ -2437,6 +2440,7 @@ CODE:
 			fragment_child = next;
 		}
 	} else {
+		myhtml_tree_node_remove(child);
 		myhtml_tree_node_add_child(self, child);
 	}
 	
@@ -2478,6 +2482,7 @@ CODE:
 			fragment_child = next;
 		}
 	} else {
+		myhtml_tree_node_remove(child);
 		if (first_node) {
 			myhtml_tree_node_insert_before(first_node, child);
 		} else {
@@ -2533,6 +2538,7 @@ CODE:
 			}
 		}
 	} else {
+		myhtml_tree_node_remove(new_node);
 		myhtml_tree_node_insert_before(old_node, new_node);
 	}
 	

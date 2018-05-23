@@ -1241,8 +1241,19 @@ ok($collection->text eq "UNIXLinuxOSXWindowsFreeBSD", 'colection->text check');
 
 $collection->each(sub {
 	my ($node, $index) = @_;
-	ok($node == $collection->[$index], 'cpllection each ['.$index.']');
+	ok($node == $collection->[$index], 'collection each ['.$index.']');
 });
+
+my $result = $collection->map(sub {
+	my ($node, $index) = @_;
+	ok($node == $collection->[$index], 'collection map ['.$index.']');
+	return $node->text;
+});
+
+ok(join('', @$result) eq "UNIXLinuxOSXWindowsFreeBSD", 'colection map result join');
+ok(join('', @{$collection->map('text')}) eq "UNIXLinuxOSXWindowsFreeBSD", 'colection map result join 2');
+$collection->map('text', 1);
+ok(join('', @{$collection->map('text')}) eq "11111", 'colection map result join 3');
 
 ######################################################################################
 # HTML5::DOM::CSS + HTML5::DOM::CSS::Selector + HTML5::DOM::CSS::Selector::Entry
