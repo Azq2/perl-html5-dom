@@ -2237,7 +2237,7 @@ Get specificity in hash `{a, b, c}`
 my $css = HTML5::DOM::CSS->new;
 my $selector = $css->parseSelector('body div.red, body span.blue');
 my $entry = $selector->entry(0);
-print Dumper($entry->specificity); # {b => 0, a => 1, c => 2}
+print Dumper($entry->specificity); # {a => 0, b => 1, c => 2}
 ```
 
 ### specificityArray
@@ -2246,7 +2246,7 @@ print Dumper($entry->specificity); # {b => 0, a => 1, c => 2}
 my $specificity = $entry->specificityArray;
 ```
 
-Get specificity in array `[b, a, c]` (ordered by weight)
+Get specificity in array `[a, b, c]` (ordered by weight)
 
 ```perl
 my $css = HTML5::DOM::CSS->new;

@@ -1288,13 +1288,25 @@ ok(ref($selector->ast) eq 'ARRAY', 'selector ast');
 ok(ref($selector->entry(0)->ast) eq 'ARRAY', 'selector entry ast');
 
 # specificity + specificityArray
-my $ent_id = 0;
-for my $spec (('2,1,2', '0,0,1', '1,0,1', '0,0,2', '0,0,2')) {
-	my $ent = $selector->entry($ent_id);
-	ok(join(",", @{$ent->specificityArray}) eq $spec, "css selector entry($ent_id) specificityArray");
-	my $arr = [$ent->specificity->{b}, $ent->specificity->{a}, $ent->specificity->{c}];
-	ok(join(",", @{$arr}) eq $spec, "css selector entry($ent_id) specificity");
-	++$ent_id;
+my $test_specificity = {
+	'*'				=> '0,0,0', 
+	'a'				=> '0,0,1', 
+	'#id'			=> '1,0,0', 
+	'.class'		=> '0,1,0', 
+	'[a=b]'			=> '0,1,0', 
+	':after'		=> '0,0,1', 
+	'::after'		=> '0,0,1', 
+	':first-child'	=> '0,1,0', 
+};
+
+for my $selector (keys %$test_specificity) {
+	my $ent = HTML5::DOM::CSS::Selector->new($selector)->entry(0);
+	
+	my $spec = join(",", @{$ent->specificityArray});
+	ok($spec eq $test_specificity->{$selector}, "test specificityArray($selector) $spec eq ".$test_specificity->{$selector});
+	
+	$spec = join(",", ($ent->specificity->{a}, $ent->specificity->{b}, $ent->specificity->{c}));
+	ok($spec eq $test_specificity->{$selector}, "test specificity($selector)");
 }
 
 # valid

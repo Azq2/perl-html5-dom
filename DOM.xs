@@ -3150,13 +3150,13 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Return selector specificity in array [b, a, c]
+# Return selector specificity in array [a, b, c]
 SV *
 specificityArray(HTML5::DOM::CSS::Selector::Entry self)
 CODE:
 	AV *arr = newAV();
-	av_push(arr, newSViv(self->list->specificity.b));
 	av_push(arr, newSViv(self->list->specificity.a));
+	av_push(arr, newSViv(self->list->specificity.b));
 	av_push(arr, newSViv(self->list->specificity.c));
 	RETVAL = newRV_noinc((SV *) arr);
 OUTPUT:
