@@ -1050,6 +1050,7 @@ myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencodi
 }
 
 void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
+	opts->threads					= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
 	opts->async						= hv_get_int_value(options, "async", 5, extend ? extend->async : 0) > 0;
 	opts->ignore_whitespace			= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
 	opts->ignore_doctype			= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
