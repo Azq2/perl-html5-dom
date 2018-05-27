@@ -191,6 +191,17 @@ static void html5_dom_wait_for_done(myhtml_tree_node_t *node, bool deep) {
 	#endif
 }
 
+static bool html5_dom_tree_is_done(myhtml_tree_t *tree) {
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		myhtml_t *myhtml = myhtml_tree_get_myhtml(tree);
+		if (myhtml->thread_stream) {
+			mythread_queue_list_t* queue_list = myhtml->thread_stream->context;
+			return mythread_queue_list_see_for_done(myhtml->thread_stream, queue_list);
+		}
+	#endif
+	return true;
+}
+
 static bool html5_dom_is_done(myhtml_tree_node_t *node, bool deep) {
 	#ifndef MyCORE_BUILD_WITHOUT_THREADS
 		if (node->token) {
@@ -1039,7 +1050,6 @@ myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencodi
 }
 
 void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
-	opts->threads					= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
 	opts->async						= hv_get_int_value(options, "async", 5, extend ? extend->async : 0) > 0;
 	opts->ignore_whitespace			= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
 	opts->ignore_doctype			= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
@@ -1049,6 +1059,10 @@ void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *ext
 	opts->encoding_use_meta			= hv_get_int_value(options, "encoding_use_meta", 17, extend ? extend->encoding_use_meta : 1) > 0;
 	opts->encoding_use_bom			= hv_get_int_value(options, "encoding_use_bom", 16, extend ? extend->encoding_use_bom : 1) > 0;
 	opts->encoding_prescan_limit	= hv_get_int_value(options, "encoding_prescan_limit", 22, extend ? extend->encoding_prescan_limit : 1024);
+	
+	#ifdef MyCORE_BUILD_WITHOUT_THREADS
+		opts->threads = 0;
+	#endif
 }
 
 void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
@@ -1640,15 +1654,7 @@ OUTPUT:
 int
 parsed(HTML5::DOM::Tree self)
 CODE:
-	RETVAL = true;
-	
-	#ifndef MyCORE_BUILD_WITHOUT_THREADS
-		myhtml_t *myhtml = myhtml_tree_get_myhtml(self->tree);
-		if (myhtml->thread_stream) {
-			mythread_queue_list_t* queue_list = myhtml->thread_stream->context;
-			RETVAL = mythread_queue_list_see_for_done(myhtml->thread_stream, queue_list);
-		}
-	#endif
+	RETVAL = html5_dom_tree_is_done(self->tree);
 OUTPUT:
 	RETVAL
 

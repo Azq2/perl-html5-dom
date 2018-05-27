@@ -11,6 +11,17 @@ my $modest_source = "third_party/modest/source";
 
 $port = 'windows_nt' if ($^O =~ /MSWin/i);
 
+my $defines = "";
+if ($^O =~ /openbsd/i) {
+	$defines = " -DMyCORE_BUILD_WITHOUT_THREADS ";
+	warn("**************************************************\n");
+	warn("*                                                *\n");
+	warn("*           DISABLE THREADS ON OpenBSD           *\n");
+	warn("* OpenBSD has buggy mutex, not working in myhtml *\n");
+	warn("*                                                *\n");
+	warn("**************************************************\n");
+}
+
 my $sources = [
 	"modest.o", 
 	"DOM.o"
@@ -29,6 +40,7 @@ WriteMakefile(
 	LICENSE			=> 'MIT',
 	LINKTYPE		=> 'dynamic',
 	LIBS			=> ["-lpthread", "-lm"],
+	DEFINE			=> $defines, 
 	CCFLAGS			=> " -std=c99 ". $Config{ccflags},
 	INC				=> "-I$source_dir",
 	OBJECT			=> join(" ", @$sources), 
