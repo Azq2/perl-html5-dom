@@ -1805,7 +1805,7 @@ CODE:
 		if (tag_ctx) {
 			self->tag_id = SvIV(new_tag_id);
 		} else {
-			sub_croak(cv, "unknown tag id %d", SvIV(new_tag_id));
+			sub_croak(cv, "unknown tag id %ld", SvIV(new_tag_id));
 		}
 		
 		RETVAL = SvREFCNT_inc(ST(0));
@@ -1821,7 +1821,7 @@ namespaceId(HTML5::DOM::Node self, SV *new_ns_id = NULL)
 CODE:
 	if (new_ns_id) {
 		if (!myhtml_namespace_name_by_id(SvIV(new_ns_id), NULL)) {
-			sub_croak(cv, "unknown namespace id %d", SvIV(new_ns_id));
+			sub_croak(cv, "unknown namespace id %ld", SvIV(new_ns_id));
 		} else {
 			myhtml_node_namespace_set(self, SvIV(new_ns_id));
 		}
