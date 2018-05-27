@@ -1798,14 +1798,14 @@ CODE:
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::Node
 # Tag id
 SV *
-tagId(HTML5::DOM::Node self, int new_tag_id = -1)
+tagId(HTML5::DOM::Node self, SV *new_tag_id = NULL)
 CODE:
-	if (new_tag_id >= 0) {
-		const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(self->tree->tags, new_tag_id);
+	if (new_tag_id) {
+		const myhtml_tag_context_t *tag_ctx = myhtml_tag_get_by_id(self->tree->tags, SvIV(new_tag_id));
 		if (tag_ctx) {
-			self->tag_id = new_tag_id;
+			self->tag_id = SvIV(new_tag_id);
 		} else {
-			sub_croak(cv, "unknown tag id %d", new_tag_id);
+			sub_croak(cv, "unknown tag id %d", SvIV(new_tag_id));
 		}
 		
 		RETVAL = SvREFCNT_inc(ST(0));
@@ -1817,13 +1817,13 @@ OUTPUT:
 
 # Namespace id
 SV *
-namespaceId(HTML5::DOM::Node self, int new_ns_id = -1)
+namespaceId(HTML5::DOM::Node self, SV *new_ns_id = NULL)
 CODE:
-	if (new_ns_id >= 0) {
-		if (!myhtml_namespace_name_by_id(new_ns_id, NULL)) {
-			sub_croak(cv, "unknown namespace id %d", new_ns_id);
+	if (new_ns_id) {
+		if (!myhtml_namespace_name_by_id(SvIV(new_ns_id), NULL)) {
+			sub_croak(cv, "unknown namespace id %d", SvIV(new_ns_id));
 		} else {
-			myhtml_node_namespace_set(self, new_ns_id);
+			myhtml_node_namespace_set(self, SvIV(new_ns_id));
 		}
 		RETVAL = SvREFCNT_inc(ST(0));
 	} else {
