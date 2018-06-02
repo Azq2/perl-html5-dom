@@ -964,6 +964,8 @@ myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **htm
 	return encoding;
 }
 
+void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts);
+
 static myhtml_tree_node_t *html5_dom_parse_fragment(html5_dom_options_t *opts, myhtml_tree_t *tree, myhtml_tag_id_t tag_id, myhtml_namespace_t ns, 
 	const char *text, size_t length, html5_fragment_parts_t *parts, mystatus_t *status_out)
 {
@@ -979,6 +981,8 @@ static myhtml_tree_node_t *html5_dom_parse_fragment(html5_dom_options_t *opts, m
 		myhtml_tree_destroy(tree);
 		return NULL;
 	}
+	
+	html5_dom_apply_tree_options(fragment_tree, opts);
 	
 	myencoding_t encoding = html5_dom_auto_encoding(opts, &text, &length);
 	
@@ -2750,8 +2754,12 @@ CODE:
 		size_t attr_val_len = 0;
 		const char *attr_val = myhtml_attribute_value(attr, &attr_val_len);
 		
+		size_t ns_len = 0;
+		const char *ns_name = myhtml_namespace_name_by_id(myhtml_attribute_namespace(attr), &ns_len);
+		
 		hv_store_ent(hash, sv_2mortal(newSVpv("name", 4)), newSVpv(attr_key ? attr_key : "", attr_key_len), 0);
 		hv_store_ent(hash, sv_2mortal(newSVpv("value", 5)), newSVpv(attr_val ? attr_val : "", attr_val_len), 0);
+		hv_store_ent(hash, sv_2mortal(newSVpv("namespace", 9)), newSVpv(ns_name ? ns_name : "", ns_len), 0);
 		
 		av_push(array, newRV_noinc((SV *) hash));
 		
