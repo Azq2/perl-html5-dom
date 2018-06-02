@@ -2991,6 +2991,107 @@ OUTPUT:
 	RETVAL
 
 #################################################################
+# HTML5::DOM::DocType (extends Node)
+#################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::DocType
+SV *name(HTML5::DOM::DocType self, SV *value = NULL)
+ALIAS:
+	publicId		= 1
+	systemId		= 2
+CODE:
+	static const char *TYPE_SYSTEM = "SYSTEM";
+	static const char *TYPE_PUBLIC = "PUBLIC";
+	
+	myhtml_tree_attr_t *root_name = self->token ? self->token->attr_first : NULL;
+	myhtml_tree_attr_t *restrict_type = root_name ? root_name->next : NULL;
+	myhtml_tree_attr_t *public_id = restrict_type ? restrict_type->next : NULL;
+	myhtml_tree_attr_t *system_id = public_id ? public_id->next : NULL;
+	
+	if (restrict_type && restrict_type->value.length == 6) {
+		if (mycore_strcasecmp(restrict_type->value.data, "SYSTEM") == 0) {
+			system_id = public_id;
+			public_id = NULL;
+		}
+	}
+	
+	if (value) {
+		value = sv_stringify(value);
+		
+		myhtml_tree_attr_t *attr_first = self->token ? self->token->attr_first : NULL;
+		myhtml_tree_attr_t *attr_last = self->token ? self->token->attr_last : NULL;
+		
+		STRLEN val_len = 0;
+		const char *val_str = SvPV_const(value, val_len);
+		
+		// root element name
+		if (ix == 0) {
+			myhtml_attribute_add(self, val_str, val_len, "", 0, MyENCODING_DEFAULT);
+		} else {
+			myhtml_attribute_add(self, root_name && root_name->key.data ? root_name->key.data : "", root_name ? root_name->key.length : 0, "", 0, MyENCODING_DEFAULT);
+		}
+		
+		const char *restrict_type_str = NULL;
+		
+		if ((ix == 2 && val_len) || (system_id && system_id->value.length))
+			restrict_type_str = TYPE_SYSTEM;
+		
+		if ((ix == 1 && val_len) || (public_id && public_id->value.length))
+			restrict_type_str = TYPE_PUBLIC;
+		
+		if (restrict_type_str) {
+			// SYSTEM or PUBLIC
+			myhtml_attribute_add(self, "", 0, restrict_type_str, 6, MyENCODING_DEFAULT);
+			
+			if (restrict_type_str == TYPE_PUBLIC) {
+				// publicId
+				if (ix == 1) {
+					myhtml_attribute_add(self, "", 0, val_str, val_len, MyENCODING_DEFAULT);
+				} else {
+					myhtml_attribute_add(self, "", 0, public_id && public_id->value.data ? public_id->value.data : "", public_id ? public_id->value.length : 0, MyENCODING_DEFAULT);
+				}
+			}
+			
+			// systemId
+			if (ix == 2) {
+				myhtml_attribute_add(self, "", 0, val_str, val_len, MyENCODING_DEFAULT);
+			} else {
+				myhtml_attribute_add(self, "", 0, system_id && system_id->value.data ? system_id->value.data : "", system_id ? system_id->value.length : 0, MyENCODING_DEFAULT);
+			}
+		}
+		
+		// remove old
+		while (attr_last && attr_first) {
+			myhtml_tree_attr_t *next = attr_first->next;
+			myhtml_attribute_delete(self->tree, self, attr_first);
+			
+			if (attr_first == attr_last)
+				break;
+			
+			attr_first = next;
+		}
+		
+		RETVAL = SvREFCNT_inc(ST(0));
+	} else {
+		RETVAL = &PL_sv_undef;
+		
+		switch (ix) {
+			case 0: /* name */
+				RETVAL = newSVpv(root_name && root_name->key.data ? root_name->key.data : "", root_name ? root_name->key.length : 0);
+			break;
+			
+			case 1: /* publicId */
+				RETVAL = newSVpv(public_id && public_id->value.data ? public_id->value.data : "", public_id ? public_id->value.length : 0);
+			break;
+			
+			case 2: /* systemId */
+				RETVAL = newSVpv(system_id && system_id->value.data ? system_id->value.data : "", system_id ? system_id->value.length : 0);
+			break;
+		}
+	}
+OUTPUT:
+	RETVAL
+
+#################################################################
 # HTML5::DOM::CSS (Parser)
 #################################################################
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::CSS

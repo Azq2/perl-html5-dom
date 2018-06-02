@@ -1833,6 +1833,72 @@ DOM node object for comments. Inherit all methods from [HTML5::DOM::Node](#html5
 
 DOM node object for document type. Inherit all methods from [HTML5::DOM::Node](#html5domnode).
 
+### name
+
+```perl
+my $name = $node->name;
+my $node = $node->name($new_name);
+```
+
+Return or change root element name from doctype.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+       <!DOCTYPE svg>
+');
+
+# get
+print $tree->document->firstChild->name; # svg
+
+# set
+$tree->document->firstChild->name('html');
+print $tree->document->firstChild->html; # <!DOCTYPE html>
+```
+
+### publicId
+
+```perl
+my $public_id = $node->publicId;
+my $node = $node->publicId($new_public_id);
+```
+
+Return or change public id from doctype.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+       <!DOCTYPE svg:svg PUBLIC "-//W3C//DTD XHTML 1.1 plus MathML 2.0 plus SVG 1.1//EN" "http://www.w3.org/2002/04/xhtml-math-svg/xhtml-math-svg.dtd">
+');
+
+# get
+print $tree->document->firstChild->publicId; # -//W3C//DTD XHTML 1.1 plus MathML 2.0 plus SVG 1.1//EN
+
+# set
+print $tree->document->firstChild->publicId('-//W3C//DTD SVG 1.1//EN');
+print $tree->document->firstChild->html; # <!DOCTYPE svg:svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/2002/04/xhtml-math-svg/xhtml-math-svg.dtd">
+```
+
+### systemId
+
+```perl
+my $system_id = $node->systemId;
+my $node = $node->systemId($new_system_id);
+```
+
+Return or change public id from doctype.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+       <!DOCTYPE svg:svg PUBLIC "-//W3C//DTD XHTML 1.1 plus MathML 2.0 plus SVG 1.1//EN" "http://www.w3.org/2002/04/xhtml-math-svg/xhtml-math-svg.dtd">
+');
+
+# get
+print $tree->document->firstChild->systemId; # http://www.w3.org/2002/04/xhtml-math-svg/xhtml-math-svg.dtd
+
+# set
+print $tree->document->firstChild->systemId('http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd');
+print $tree->document->firstChild->html; # <!DOCTYPE svg:svg PUBLIC "-//W3C//DTD XHTML 1.1 plus MathML 2.0 plus SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+```
+
 # HTML5::DOM::Collection
 
 CSS Parser object
