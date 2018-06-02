@@ -1121,30 +1121,43 @@ $tree = $parser->parse('
 		
 	</div>
 ');
-for my $method (qw|attr getAttribute|) {
+for my $method (qw|attr getAttribute attrArray|) {
 	my $test = $tree->at('#test');
 	
-	ok(!defined $test->$method("iwefwefwefewfwe"), "$method (undef)");
+	my $method2 = $method eq 'attrArray' ? 'attr' : $method;
+	
+	ok(!defined $test->$method2("iwefwefwefewfwe"), "$method2 (undef)");
 	
 	my $attrs_test = [
-		['test', ''], 
 		['id', 'test'], 
-		['test-one', '1'], 
+		['test', ''], 
+		['data-test', "\n 123409 >^_^< \n"], 
 		['test-empty', ''], 
-		['data-test', "\n 123409 >^_^< \n"]
+		['test-one', '1'], 
 	];
 	
 	for my $attr (@$attrs_test) {
-		ok($test->$method($attr->[0]) eq $attr->[1], "$method(".$attr->[0].")");
+		ok($test->$method2($attr->[0]) eq $attr->[1], "$method2(".$attr->[0].")");
 	}
 	
-	# bulk test
+	# bulk test attr
 	if ($method eq 'attr') {
 		my $hash = $test->attr;
 		ok(scalar(keys(%$hash)) == scalar(@$attrs_test), 'attr bulk: result length');
 		
 		for my $attr (@$attrs_test) {
 			ok($hash->{$attr->[0]} eq $attr->[1], 'attr bulk: test '.$attr->[0]);
+		}
+	}
+	
+	# bulk test attrArray
+	if ($method eq 'attrArray') {
+		my $i = 0;
+		
+		for my $attr (@{$test->$method()}) {
+			ok($attrs_test->[$i]->[0] eq $attr->{name}, 'attrArray bulk: test key '.$attr->{name}." eq ".$attrs_test->[$i]->[0]);
+			ok($attrs_test->[$i]->[1] eq $attr->{value}, 'attrArray bulk: test val '.$attr->{name});
+			++$i;
 		}
 	}
 }

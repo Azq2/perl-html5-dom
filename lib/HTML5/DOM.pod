@@ -1388,19 +1388,33 @@ Example:
  my $tree = HTML5::DOM->new->parse('
     <div id="test" data-test="test value" data-href="#"></div>
  ');
- my $div = $tree->at('ul');
+ my $div = $tree->at('#test');
  $div->attr("data-new", "test");
  print $div->attr("data-test");     # test value
  print $div->{"data-test"};         # test value
  print $div->attr->{"data-test"};   # test value
  
  # {id => "test", "data-test" => "test value", "data-href" => "#", "data-new" => "test"}
- print $div->attr;
+ print Dumper($div->attr);
  
  $div->removeAttr("data-test");
  
  # {id => "test", "data-href" => "#", "data-new" => "test"}
- print $div->attr;
+ print Dumper($div->attr);
+
+=head3 attrArray
+
+ my $arr = $node->attrArray;
+
+Get all attributes in array (in tree order).
+
+ my $tree = HTML5::DOM->new->parse('
+    <div id="test" data-test="test value" data-href="#"></div>
+ ');
+ my $div = $tree->at('#test');
+ 
+ # [{key => 'id', value => 'test'}, {key => 'data-test', value => 'test'}, {key => 'data-href', value => '#'}]
+ print Dumper($div->attrArray);
 
 =head3 getAttribute
 

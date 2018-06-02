@@ -2734,6 +2734,34 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# return all attributes in a array
+SV *
+attrArray(HTML5::DOM::Element self)
+CODE:
+	AV *array = newAV();
+	
+	myhtml_tree_attr_t *attr = myhtml_node_attribute_first(self);
+	while (attr) {
+		HV *hash = newHV();
+		
+		size_t attr_key_len = 0;
+		const char *attr_key = myhtml_attribute_key(attr, &attr_key_len);
+		
+		size_t attr_val_len = 0;
+		const char *attr_val = myhtml_attribute_value(attr, &attr_val_len);
+		
+		hv_store_ent(hash, sv_2mortal(newSVpv("name", 4)), newSVpv(attr_key ? attr_key : "", attr_key_len), 0);
+		hv_store_ent(hash, sv_2mortal(newSVpv("value", 5)), newSVpv(attr_val ? attr_val : "", attr_val_len), 0);
+		
+		av_push(array, newRV_noinc((SV *) hash));
+		
+		attr = myhtml_attribute_next(attr);
+	}
+	
+	RETVAL = newRV_noinc((SV *) array);
+OUTPUT:
+	RETVAL
+
 # attr()					- return all attributes in a hash
 # attr("key")				- return value of attribute "key" (undef is not exists)
 # attr("key", "value")		- set value for attribute "key" (return this)
