@@ -49,7 +49,12 @@ sub main {
 		my $test_id = 0;
 		for my $line (split(/\n/, read_file($file)."\n")) {
 			if ($line eq "#data") {
-				push @tests, $test if ($test);
+				if ($test) {
+					$test->{document} =~ s/\n\n$//s;
+					$test->{data} =~ s/\n$//s;
+					push @tests, $test;
+				}
+				
 				$file =~ s/^\Q$html5lib_tests_dir\E\/?//g;
 				$test = {
 					file	=> $file, 
@@ -57,14 +62,11 @@ sub main {
 				};
 			}
 			
-			if ($line ne "") {
-				if (substr($line, 0, 1) eq '#') {
-					$key = substr($line, 1);
-					$test->{$key} = "";
-				} else {
-					$test->{$key} .= "\n" if (length $test->{$key});
-					$test->{$key} .= $line;
-				}
+			if (substr($line, 0, 1) eq '#') {
+				$key = substr($line, 1);
+				$test->{$key} = "";
+			} else {
+				$test->{$key} .= $line."\n";
 			}
 		}
 	}
