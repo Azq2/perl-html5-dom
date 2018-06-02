@@ -11,8 +11,8 @@ use File::Slurp qw|read_file write_file read_dir|;
 use List::Util qw|min max|;
 
 my $show_help			= 0;
-my $enable_diff			= 1;
-my $enable_colordiff	= 1;
+my $enable_diff			= 0;
+my $enable_colordiff	= 0;
 my $html5lib_tests_dir	= "";
 
 GetOptions (
