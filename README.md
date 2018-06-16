@@ -70,8 +70,6 @@ print $tree->html."\n";
 # TODO: more examples in SYNOPSIS
 # But you can explore API documentation.
 # My lib have simple API, which is intuitively familiar to anyone who used the DOM.
-# Sorry, if my english is very bad, in future, i may be fix this. 
-# Or you can help me with this, by sending pull request.
 ```
 
 # DESCRIPTION
