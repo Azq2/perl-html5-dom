@@ -13,4 +13,6 @@ MANIFEST.bak
 .gz
 .tar
 .md
+blib/.*?
+pm_to_lib
 
