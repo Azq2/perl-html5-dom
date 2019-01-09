@@ -79,7 +79,6 @@ enum {
 
 typedef struct {
 	long threads;
-	bool async;
 	bool ignore_whitespace;
 	bool ignore_doctype;
 	bool scripts;
@@ -164,60 +163,6 @@ static const char *modest_strerror(mystatus_t status) {
 		#include "gen/modest_errors.c"	
 	}
 	return status ? "UNKNOWN" : "";
-}
-
-static void html5_dom_wait_for_tree_done(myhtml_tree_t *tree) {
-	#ifndef MyCORE_BUILD_WITHOUT_THREADS
-		myhtml_t *myhtml = myhtml_tree_get_myhtml(tree);
-		if (myhtml->thread_stream) {
-			mythread_queue_list_t* queue_list = myhtml->thread_stream->context;
-			if (queue_list)
-				mythread_queue_list_wait_for_done(myhtml->thread_stream, queue_list);
-		}
-	#endif
-}
-
-static void html5_dom_wait_for_done(myhtml_tree_node_t *node, bool deep) {
-	#ifndef MyCORE_BUILD_WITHOUT_THREADS
-		if (node->token)
-			myhtml_token_node_wait_for_done(node->tree->token, node->token);
-		if (deep) {
-			myhtml_tree_node_t *child = myhtml_node_child(node);
-			while (child) {
-				html5_dom_wait_for_done(child, deep);
-				child = myhtml_node_next(child);
-			}
-		}
-	#endif
-}
-
-static bool html5_dom_tree_is_done(myhtml_tree_t *tree) {
-	#ifndef MyCORE_BUILD_WITHOUT_THREADS
-		myhtml_t *myhtml = myhtml_tree_get_myhtml(tree);
-		if (myhtml->thread_stream) {
-			mythread_queue_list_t* queue_list = myhtml->thread_stream->context;
-			return mythread_queue_list_see_for_done(myhtml->thread_stream, queue_list);
-		}
-	#endif
-	return true;
-}
-
-static bool html5_dom_is_done(myhtml_tree_node_t *node, bool deep) {
-	#ifndef MyCORE_BUILD_WITHOUT_THREADS
-		if (node->token) {
-			if ((node->token->type & MyHTML_TOKEN_TYPE_DONE) == 0)
-				return false;
-		}
-		if (deep) {
-			myhtml_tree_node_t *child = myhtml_node_child(node);
-			while (child) {
-				if (!html5_dom_is_done(child, deep))
-					return false;
-				child = myhtml_node_next(child);
-			}
-		}
-	#endif
-	return true;
 }
 
 static void html5_dom_parser_free(html5_dom_parser_t *self) {
@@ -1055,7 +1000,6 @@ myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencodi
 
 void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
 	opts->threads					= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
-	opts->async						= hv_get_int_value(options, "async", 5, extend ? extend->async : 0) > 0;
 	opts->ignore_whitespace			= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
 	opts->ignore_doctype			= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
 	opts->scripts					= hv_get_int_value(options, "scripts", 7, extend ? extend->scripts : 0) > 0;
@@ -1344,12 +1288,10 @@ CODE:
 	
 	self->myhtml = myhtml_create();
 	
-	if (self->opts.threads <= 0) {
+	if (self->opts.threads <= 1) {
 		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_SINGLE, 1, 0);
-	} else if (self->opts.threads == 1) {
-		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_ALL_IN_ONE, 1, 0);
 	} else {
-		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_SEPARATELY, self->opts.threads, 0);
+		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_DEFAULT, self->opts.threads, 0);
 	}
 	
 	if (status) {
@@ -1443,9 +1385,6 @@ CODE:
 		sub_croak(cv, "myhtml_parse_chunk failed:%d (%s)", status, modest_strerror(status));
 	}
 	
-	if (!self->chunk_opts.async)
-		html5_dom_wait_for_tree_done(self->tree);
-	
 	RETVAL = create_tree_object(self->tree, SvRV(ST(0)), self);
 	self->tree = NULL;
 OUTPUT:
@@ -1479,9 +1418,6 @@ CODE:
 		myhtml_tree_destroy(tree);
 		sub_croak(cv, "myhtml_parse failed: %d (%s)", status, modest_strerror(status));
 	}
-	
-	if (!opts.async)
-		html5_dom_wait_for_tree_done(tree);
 	
 	RETVAL = create_tree_object(tree, SvRV(ST(0)), self);
 OUTPUT:
@@ -1646,20 +1582,19 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Wait for parsing done (when async mode)
+# Wait for parsing done (when async mode) - removed
 SV *
 wait(HTML5::DOM::Tree self)
 CODE:
-	html5_dom_wait_for_tree_done(self->tree);
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
 
-# True if parsing done (when async mode)
+# True if parsing done (when async mode) - removed
 int
 parsed(HTML5::DOM::Tree self)
 CODE:
-	RETVAL = html5_dom_tree_is_done(self->tree);
+	RETVAL = 1;
 OUTPUT:
 	RETVAL
 
@@ -1992,7 +1927,6 @@ CODE:
 			// force set encoding to UTF-8
 			opts.encoding			= MyENCODING_DEFAULT;
 			opts.default_encoding	= MyENCODING_DEFAULT;
-			opts.async				= false;
 			
 			myhtml_tree_node_t *fragment = html5_dom_parse_fragment(&opts, self->tree, context_tag_id, myhtml_node_namespace(context_node), text_str, text_len, &parts, &status);
 			if (status)
@@ -2219,20 +2153,19 @@ CODE:
 OUTPUT:
 	RETVAL
 
-# Wait for node parsing done (when async mode)
+# Wait for node parsing done (when async mode) - removed
 SV *
 wait(HTML5::DOM::Node self, bool deep = false)
 CODE:
-	html5_dom_wait_for_done(self, deep);
 	RETVAL = SvREFCNT_inc(ST(0));
 OUTPUT:
 	RETVAL
 
-# True if node parsing done (when async mode)
+# True if node parsing done (when async mode) - removed
 int
 parsed(HTML5::DOM::Node self, bool deep = false)
 CODE:
-	RETVAL = html5_dom_is_done(self, deep);
+	RETVAL = 1;
 OUTPUT:
 	RETVAL
 
