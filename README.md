@@ -81,7 +81,6 @@ It based on  [https://github.com/lexborisov/Modest](https://github.com/lexboriso
 ### Key features
 
 - Really fast HTML parsing, can use threads (by default).
-- Supports async parsing.
 - Supports parsing by chunks.
 - Fully conformant with the HTML5 specification.
 - Fast CSS4 selectors.
@@ -102,7 +101,6 @@ my $parser = HTML5::DOM->new;
 # override some options, if you need
 my $parser = HTML5::DOM->new({
    threads                 => 2,
-   async                   => 0, 
    ignore_whitespace       => 0, 
    ignore_doctype          => 0, 
    scripts                 => 0, 
@@ -478,28 +476,6 @@ print "ns name: ".$tree->id2namespace(HTML5::DOM->NS_HTML)."\n"; # ns name: html
 
 Convert namespace id to name. Return `undef`, if namespace id not exists.
 See ["NAMESPACES"](#namespaces) for namespace constants list. 
-
-### wait
-
-```perl
-my $parser = HTML5::DOM->new({async => 1});
-my $tree = $parser->parse($some_big_html_file);
-# ...some your work...
-$tree->wait; # wait before parsing threads done
-```
-
-Blocking wait for tree parsing done. Only for async mode.
-
-### parsed
-
-```perl
-my $parser = HTML5::DOM->new({async => 1});
-my $tree = $parser->parse($some_big_html_file);
-# ...some your work...
-while (!$tree->parsed); # wait before parsing threads done
-```
-
-Non-blocking way for check if tree parsing done. Only for async mode.
 
 ### parser
 
@@ -1401,28 +1377,6 @@ print $li->[0]->isSameNode($li->[0]); # 1
 print $li->[0]->isSameNode($li->[1]); # 0
 print $li->[0]->isSameNode($li->[2]); # 0
 ```
-
-### wait
-
-```perl
-my $parser = HTML5::DOM->new({async => 1});
-my $tree = $parser->parse($some_big_html_file);
-# ...some your work...
-$tree->body->wait; # wait before parsing for <body> is done
-```
-
-Blocking wait for node parsing done. Only for async mode.
-
-### parsed
-
-```perl
-my $parser = HTML5::DOM->new({async => 1});
-my $tree = $parser->parse($some_big_html_file);
-# ...some your work...
-while (!$tree->body->parsed); # wait before parsing for <body> is done
-```
-
-Non-blocking way for check if node parsing done. Only for async mode.
 
 # HTML5::DOM::Element
 
@@ -2851,18 +2805,6 @@ Options for:
 Threads count, if 0 - parsing in single mode without threads (default 2)
 
 This option affects only for [HTML5::DOM::new](#new).
-
-#### async
-
-If async 0 (default), then some parsing functions
-(such as [HTML5::DOM::parse](#parse), [HTML5::DOM::parseChunkEnd](#parsechunkend), [HTML5::DOM::Tree::parseFragment](#parsefragment))
-waiting for parsing done.
-
-If async 1, you must manualy call `$tree->wait` and `$node->wait` for waiting parsing done.
-
-Or use non-blocking `$tree->parsed` and `$node->parsed` to determine parsing state.
-
-This options works only if `threads` > 0
 
 #### ignore\_whitespace
 
