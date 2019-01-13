@@ -203,7 +203,7 @@ Completes chunked parsing and return [HTML5::DOM::Tree](#html5domtree) object.
 
 ### parseAsync
 
-Pasrsing html in background thread. Can use with different ways:
+Parsing html in background thread. Can use with different ways:
 
 1\. Manual wait parsing completion when you need.
 
@@ -224,7 +224,7 @@ $async = $parser->parseAsync($html);
 # or with options
 $async = $parser->parseAsync($html, { scripts => 0 });
 
-# ...dome some work...
+# ...do some work...
 
 # wait for parsing done
 my $tree = $async->wait;
@@ -256,7 +256,7 @@ $async = $parser->parseAsync($html);
 $async = $parser->parseAsync($html, { scripts => 0 });
 
 while (!$async->parsed) {
-    # dome some work
+    # do some work
 }
 $tree = $async->tree; # HTML5::DOM::Tree
 # work with $tree
@@ -271,7 +271,7 @@ $async = $parser->parseAsync($html);
 $async = $parser->parseAsync($html, { scripts => 0 });
 
 while (!($tree = $async->tree)) {
-    # dome some work
+    # do some work
 }
 # work with $tree
 print $tree->root->at('div')->text."\n"; # Hello world!
@@ -283,7 +283,7 @@ print $tree->root->at('div')->text."\n"; # Hello world!
 
 3\. Intergation with [HTML::MyHTML](https://metacpan.org/pod/EV)
 
-Required packages (only if you want use this way):
+Required packages (only if you want use event loop):
 
 - [EV](https://metacpan.org/pod/EV)
 - [AnyEvent::Util](https://metacpan.org/pod/AnyEvent::Util)
@@ -2276,6 +2276,69 @@ my $token = $tokens->each(sub {
 ```
 
 Forach all tokens in list.
+
+# HTML5::DOM::AsyncResult
+
+Get result and check status from async parsing.
+
+### parsed
+
+Non-blocking check status.
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+my $async = $parser->parseAsync('<div>Hello world!</div>' x 1000);
+
+my $is_parsed;
+while (!($is_parsed = $async->parsed)) {
+    print "is_parsed=$is_parsed\n";
+}
+```
+
+Returns 1 if async parsing done. Otherwise returns 0.
+
+### tree
+
+Non-blocking get result.
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+my $async = $parser->parseAsync('<div>Hello world!</div>' x 1000);
+
+my $tree;
+while (!($tree = $async->tree)) {
+    print "is_parsed=".($tree ? 1 : 0)."\n";
+}
+
+print $tree->at('div')->text."\n"; # Hello world!
+```
+
+Returns [HTML5::DOM::Tree](#html5domtree) object if async parsing done. Otherwise returns `undef`.
+
+### wait
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+my $async = $parser->parseAsync('<div>Hello world!</div>' x 1000);
+
+my $tree = $async->wait;
+
+print $tree->at('div')->text."\n"; # Hello world!
+```
+
+Blocking waits for parsing done and returns [HTML5::DOM::Tree](#html5domtree) object.
 
 # HTML5::DOM::CSS
 

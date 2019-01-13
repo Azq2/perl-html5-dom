@@ -336,7 +336,7 @@ sub parseAsync($$;$$) {
 			$callback->($async->wait);
 		});
 		
-		return $async_w;
+		return $async;
 	} else {
 		_parseAsync(@_);
 	}
