@@ -6,3 +6,11 @@
 2018-05-27	1.05	- fix specificity calculation
 2018-05-27	1.06	- fix tests passing on 32-bit machines
 2018-05-27	1.07	- fix crash on OpenBSD (use semaphore instead of mutex)
+2019-01-13	1.08	- update modest/myhtml
+2019-01-13	1.09	- API CHANGE: removed old broken async api (wait and parsed methods on Tree and Node)
+                    - API CHANGE: now by default parsing in a single mode (it used to be 2 threads)
+                    - new async parsing api (see docs)
+                    - event loop integration (using EV or any custom implementations top on pipes or sockets)
+                    - update modest/myhtml
+                    - update and fix docs
+                    - supports exists($node->{attr}) for attributes
