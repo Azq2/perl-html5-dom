@@ -1628,7 +1628,7 @@ OUTPUT:
 
 # Parse full html (in background)
 HTML5::DOM::AsyncResult
-parseAsync(HTML5::DOM self, SV *html, HV *options = NULL, int ev_fd = -1)
+_parseAsync(HTML5::DOM self, SV *html, HV *options = NULL, int ev_fd = -1)
 CODE:
 	DOM_GC_TRACE("DOM::AsyncResult::new");
 	html = sv_stringify(html);

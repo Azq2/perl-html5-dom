@@ -308,6 +308,35 @@ use constant {
 };
 # </MyHTML_ns>
 
+sub parseAsync($$;$$) {
+	my ($self, $html, $options, $callback) = @_;
+	
+	if (ref($callback) eq 'CODE') {
+		require EV;
+		require AnyEvent::Util;
+		
+		my ($r, $w) = AnyEvent::Util::portable_pipe();
+		AnyEvent::fh_unblock $r;
+		
+		my $async_w;
+		my $async = $self->_parseAsync($html, $options, fileno($w));
+		
+		$async_w = EV::io $r, EV::READ, sub {
+			close $w;
+			close $r;
+			undef $w;
+			undef $r;
+			undef $async_w;
+			
+			$callback->($async->wait);
+		};
+		
+		return $async_w;
+	} else {
+		return $self->_parseAsync($html, $options, $callback);
+	}
+}
+
 XSLoader::load('HTML5::DOM', $VERSION);
 
 1;
