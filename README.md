@@ -175,29 +175,46 @@ Pasrsing html in background thread. Can use with different ways:
 
 ```perl
 my $html = '<div>Hello world!</div>';
+
+# start async parsing
 my $async = $parser->parseAsync($html);
+
+# or with options
+my $async = $parser->parseAsync($html, { scripts => 0 });
+
 # dome some work
 my $tree = $async->wait; # HTML5::DOM::Tree
 ```
 
-`$async-`wait> returns [HTML5::DOM::AsyncResult](#html5domasyncresult) object.
+`$async->wait` returns [HTML5::DOM::AsyncResult](#html5domasyncresult) object.
 
 2\. Non-blocking check for parsing completion.
 
 ```perl
 my $html = '<div>Hello world!</div>';
+
+# start async parsing
 my $async = $parser->parseAsync($html);
+
+# or with options
+my $async = $parser->parseAsync($html, { scripts => 0 });
+
 while (!$async->parsed) {
     # dome some work
 }
 my $tree = $async->tree; # HTML5::DOM::Tree
 # work with $tree
- print $tree->root->at('div')->text; # Hello world!
+print $tree->root->at('div')->text; # Hello world!
 
 # or another way
 
 my $html = '<div>Hello world!</div>';
+
+# start async parsing
 my $async = $parser->parseAsync($html);
+
+# or with options
+my $async = $parser->parseAsync($html, { scripts => 0 });
 
 my $tree;
 while (!($tree = $async->tree)) {
@@ -207,9 +224,9 @@ while (!($tree = $async->tree)) {
 print $tree->root->at('div')->text; # Hello world!
 ```
 
-`$async-`parsed> returns `1` if parsing done. Else returns `0`.
+`$async->parsed` returns `1` if parsing done. Else returns `0`.
 
-`$async-`tree> returns [HTML5::DOM::Tree](#html5domtree) object if parsing done. Else returns `undef`.
+`$async->tree` returns [HTML5::DOM::Tree](#html5domtree) object if parsing done. Else returns `undef`.
 
 3\. Intergation with [HTML::MyHTML](https://metacpan.org/pod/EV)
 
