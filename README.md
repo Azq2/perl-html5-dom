@@ -19,7 +19,7 @@ my $parser = HTML5::DOM->new;
 
 # parse some html
 my $tree = $parser->parse('
- <label>Some list of OS:</lbnel>
+ <label>Some list of OS:</label>
  <ul class="list" data-what="os" title="OS list">
     <li>UNIX</li>
     <li>Linux</li>
@@ -80,7 +80,7 @@ It based on  [https://github.com/lexborisov/Modest](https://github.com/lexboriso
 
 ### Key features
 
-- Really fast HTML parsing, can use threads (by default).
+- Really fast HTML parsing, can use multithreads.
 - Supports parsing by chunks.
 - Fully conformant with the HTML5 specification.
 - Fast CSS4 selectors.
@@ -96,11 +96,17 @@ HTML5 parser object.
 ## new
 
 ```perl
-# with default options
-my $parser = HTML5::DOM->new;
+use warnings;
+use strict;
+use HTML5::DOM;
 
-# override some options, if you need
-my $parser = HTML5::DOM->new({
+my $parser;
+
+# with default options
+$parser = HTML5::DOM->new;
+
+# or override some options, if you need
+$parser = HTML5::DOM->new({
    threads                 => 0,
    ignore_whitespace       => 0, 
    ignore_doctype          => 0, 
@@ -118,13 +124,21 @@ Creates new parser object with options. See ["PARSER OPTIONS"](#parser-options) 
 ### parse
 
 ```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
 my $html = '<div>Hello world!</div>';
 
+my $tree;
+
 # parsing with options defined in HTML5::DOM->new
-my $tree = $parser->parse($html);
+$tree = $parser->parse($html);
 
 # parsing with custom options (extends options defined in HTML5::DOM->new)
-my $tree = $parser->parse($html, {
+$tree = $parser->parse($html, {
     scripts     => 0, 
 });
 ```
@@ -134,6 +148,12 @@ Parse html string and return [HTML5::DOM::Tree](#html5domtree) object.
 ### parseChunkStart
 
 ```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
 # start chunked parsing with options defined in HTML5::DOM->new
 # call parseChunkStart without options is useless, 
 # because first call of parseChunk automatically call parseChunkStart. 
@@ -149,7 +169,13 @@ Init chunked parsing. See ["PARSER OPTIONS"](#parser-options) for details.
 
 ### parseChunk
 
-```
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
 $parser->parseChunkStart()->parseChunk('<')->parseChunk('di')->parseChunk('v>');
 ```
 
@@ -158,11 +184,19 @@ Parse chunk of html stream.
 ### parseChunkEnd
 
 ```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
 # start some chunked parsing
 $parser->parseChunk('<')->parseChunk('di')->parseChunk('v>');
 
 # end parsing and get tree
 my $tree = $parser->parseChunkEnd();
+
+print $tree->html; # <html><head></head><body><div></div></body></html>
 ```
 
 Completes chunked parsing and return [HTML5::DOM::Tree](#html5domtree) object.
@@ -174,16 +208,29 @@ Pasrsing html in background thread. Can use with different ways:
 1\. Manual wait parsing completion when you need.
 
 ```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
 my $html = '<div>Hello world!</div>';
 
+my $async;
+
 # start async parsing
-my $async = $parser->parseAsync($html);
+$async = $parser->parseAsync($html);
 
 # or with options
-my $async = $parser->parseAsync($html, { scripts => 0 });
+$async = $parser->parseAsync($html, { scripts => 0 });
 
-# dome some work
-my $tree = $async->wait; # HTML5::DOM::Tree
+# ...dome some work...
+
+# wait for parsing done
+my $tree = $async->wait;
+
+# work with tree
+print $tree->html;
 ```
 
 `$async->wait` returns [HTML5::DOM::AsyncResult](#html5domasyncresult) object.
@@ -191,37 +238,43 @@ my $tree = $async->wait; # HTML5::DOM::Tree
 2\. Non-blocking check for parsing completion.
 
 ```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
 my $html = '<div>Hello world!</div>';
 
+my $tree;
+my $async;
+
 # start async parsing
-my $async = $parser->parseAsync($html);
+$async = $parser->parseAsync($html);
 
 # or with options
-my $async = $parser->parseAsync($html, { scripts => 0 });
+$async = $parser->parseAsync($html, { scripts => 0 });
 
 while (!$async->parsed) {
     # dome some work
 }
-my $tree = $async->tree; # HTML5::DOM::Tree
+$tree = $async->tree; # HTML5::DOM::Tree
 # work with $tree
-print $tree->root->at('div')->text; # Hello world!
+print $tree->root->at('div')->text."\n"; # Hello world!
 
 # or another way
 
-my $html = '<div>Hello world!</div>';
-
 # start async parsing
-my $async = $parser->parseAsync($html);
+$async = $parser->parseAsync($html);
 
 # or with options
-my $async = $parser->parseAsync($html, { scripts => 0 });
+$async = $parser->parseAsync($html, { scripts => 0 });
 
-my $tree;
 while (!($tree = $async->tree)) {
     # dome some work
 }
 # work with $tree
-print $tree->root->at('div')->text; # Hello world!
+print $tree->root->at('div')->text."\n"; # Hello world!
 ```
 
 `$async->parsed` returns `1` if parsing done. Else returns `0`.
@@ -236,6 +289,8 @@ Required packages (only if you want use this way):
 - [AnyEvent::Util](https://metacpan.org/pod/AnyEvent::Util)
 
 ```perl
+use warnings;
+use strict;
 use EV;
 use HTML5::DOM;
 
@@ -244,10 +299,10 @@ my $html = '<div>Hello world!</div>';
 
 my $custom_options = { scripts => 0 };
 
-my $async = $parser->parseAsync($html, $options, sub {
+$parser->parseAsync($html, $custom_options, sub {
     my $tree = shift;
     # work with $tree
-     print $tree->root->at('div')->text; # Hello world!
+    print $tree->root->at('div')->text."\n"; # Hello world!
 });
 
 # do some work
@@ -255,11 +310,15 @@ my $async = $parser->parseAsync($html, $options, sub {
 EV::loop;
 ```
 
+Function returns [HTML5::DOM::AsyncResult](#html5domasyncresult) object.
+
 `$tree` in callback is a [HTML5::DOM::Tree](#html5domtree) object.
 
 4\. Intergation with custom event-loop (example with AnyEvent loop)
 
 ```perl
+use warnings;
+use strict;
 use AnyEvent;
 use AnyEvent::Util;
 use HTML5::DOM;
@@ -279,7 +338,7 @@ my $write_fd = fileno($w);
 # after parsing complete module writes to $write_fd:
 # value "1" - if success
 # value "0" - if error
-my $async = $parser->parseAsync($html, $options, $write_fd);
+my $async = $parser->parseAsync($html, $custom_options, $write_fd);
 
 # watch for value
 my $async_watcher;
@@ -288,7 +347,8 @@ $async_watcher = AE::io $r, 0, sub {
     $async_watcher = undef; # destroy watcher
     
     # work with $tree
-    print $tree->root->at('div')->text; # Hello world!
+    my $tree = $async->wait;
+    print $tree->root->at('div')->text."\n"; # Hello world!
 };
 
 # ...do some work...
