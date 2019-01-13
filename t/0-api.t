@@ -270,6 +270,8 @@ for my $threads ((0, 2)) {
 	
 	# test leak
 	(sub { $parser->parseAsync('<div class="test">PASSED</div>', {threads => $threads}); })->();
+	(sub { my $new_parser = $parser->parseAsync('<div class="test">PASSED</div>', {threads => $threads})->wait->parser; })->();
+	(sub { $parser->parseAsync('<div class="test">PASSED</div>', {threads => $threads})->wait->parser->parse(""); })->();
 }
 
 #####################################

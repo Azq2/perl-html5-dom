@@ -1458,7 +1458,7 @@ static SV *html5_dom_async_parse_done(CV *cv, html5_dom_async_result *result, bo
 	if (result->tree) {
 		DOM_GC_TRACE("DOM::new");
 		SV *myhtml_sv = pack_pointer("HTML5::DOM", result->parser);
-		result->tree_sv = create_tree_object(result->tree, myhtml_sv, result->parser);
+		result->tree_sv = create_tree_object(result->tree, SvRV(myhtml_sv), result->parser);
 		result->tree = NULL;
 		SvREFCNT_dec(myhtml_sv);
 	}
