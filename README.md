@@ -281,7 +281,7 @@ print $tree->root->at('div')->text."\n"; # Hello world!
 
 `$async->tree` returns [HTML5::DOM::Tree](#html5domtree) object if parsing done. Else returns `undef`.
 
-3\. Intergation with [HTML::MyHTML](https://metacpan.org/pod/EV)
+3\. Intergation with [EV](https://metacpan.org/pod/EV)
 
 Required packages (only if you want use event loop):
 
