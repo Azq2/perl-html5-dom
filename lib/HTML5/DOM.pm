@@ -316,12 +316,12 @@ sub parseAsync($$;$$) {
 		require AnyEvent::Util;
 		
 		my ($r, $w) = AnyEvent::Util::portable_pipe();
-		AnyEvent::fh_unblock $r;
+		AnyEvent::fh_unblock($r);
 		
 		my $async_w;
 		my $async = $self->_parseAsync($html, $options, fileno($w));
 		
-		$async_w = EV::io $r, EV::READ, sub {
+		$async_w = EV::io($r, EV::READ(), sub {
 			close $w;
 			close $r;
 			undef $w;
@@ -329,11 +329,11 @@ sub parseAsync($$;$$) {
 			undef $async_w;
 			
 			$callback->($async->wait);
-		};
+		});
 		
 		return $async_w;
 	} else {
-		return $self->_parseAsync($html, $options, $callback);
+		_parseAsync(@_);
 	}
 }
 
