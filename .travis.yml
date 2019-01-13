@@ -8,5 +8,6 @@ perl:
     - "5.8"
 os:
     - linux
+    - windows
 
 script: perl Makefile.PL && make test
