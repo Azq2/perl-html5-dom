@@ -49,5 +49,16 @@ WriteMakefile(
 	CCFLAGS			=> " -std=c99 ". $Config{ccflags},
 	INC				=> "-I$source_dir",
 	OBJECT			=> join(" ", @$sources), 
-	test			=> {TESTS => 't/*.t t/*/*.t'}
+	test			=> {TESTS => 't/*.t t/*/*.t'}, 
+	
+	(eval { ExtUtils::MakeMaker->VERSION(6.46) } ? (META_MERGE => {
+		'meta-spec' => { version => 2 },
+		resources => {
+			repository => {
+				type	=> 'git',
+				url		=> 'https://github.com/Azq2/perl-html5-dom.git',
+				web		=> 'https://github.com/Azq2/perl-html5-dom',
+			},
+		}}) : ()
+	),
 );
