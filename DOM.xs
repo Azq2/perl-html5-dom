@@ -141,6 +141,7 @@ typedef struct {
 
 typedef struct {
 	mythread_t *thread;
+	int fd;
 	
 	// output tree
 	myhtml_tree_t *tree;
@@ -1302,7 +1303,7 @@ static void *html5_dom_mythread_function(void *arg) {
     return NULL;
 }
 
-static void html5_dom_async_parse(html5_dom_async_result *result) {
+static int html5_dom_async_parse(html5_dom_async_result *result) {
 	mystatus_t status;
 	
 	// create parser
@@ -1323,7 +1324,7 @@ static void html5_dom_async_parse(html5_dom_async_result *result) {
 		html5_dom_parser_free(self);
 		result->status = status;
 		result->done = true;
-		return;
+		return write(result->fd, "0", 1);
 	}
 	
 	// init myhtml tree
@@ -1334,7 +1335,7 @@ static void html5_dom_async_parse(html5_dom_async_result *result) {
 		html5_dom_parser_free(self);
 		result->status = status;
 		result->done = true;
-		return;
+		return write(result->fd, "0", 1);
 	}
 	
 	// detect encoding
@@ -1356,12 +1357,18 @@ static void html5_dom_async_parse(html5_dom_async_result *result) {
 		html5_dom_parser_free(self);
 		result->status = status;
 		result->done = true;
-		return;
+		return write(result->fd, "0", 1);
 	}
 	
 	result->done = true;
 	result->tree = tree;
 	result->parser = self;
+	
+	// trigger event
+	if (result->fd >= 0)
+		return write(result->fd, "1", 1);
+	
+	return 0;
 }
 
 static void html5_dom_async_parse_worker(mythread_id_t thread_id, void *arg) {
@@ -1370,9 +1377,11 @@ static void html5_dom_async_parse_worker(mythread_id_t thread_id, void *arg) {
 	html5_dom_async_parse(result);
 }
 
-static html5_dom_async_result *html5_dom_async_parse_init(CV *cv, html5_dom_parser_t *self, SV *html, HV *options) {
+static html5_dom_async_result *html5_dom_async_parse_init(CV *cv, html5_dom_parser_t *self, SV *html, HV *options, int ev_fd) {
 	html5_dom_async_result *result = (html5_dom_async_result *) safemalloc(sizeof(html5_dom_async_result));
 	memset(result, 0, sizeof(html5_dom_async_result));
+	
+	result->fd = ev_fd;
 	
 	// extends options
 	html5_dom_parse_options(&result->opts, &self->opts, options);
@@ -1619,11 +1628,11 @@ OUTPUT:
 
 # Parse full html (in background)
 HTML5::DOM::AsyncResult
-parseAsync(HTML5::DOM self, SV *html, HV *options = NULL)
+parseAsync(HTML5::DOM self, SV *html, HV *options = NULL, int ev_fd = -1)
 CODE:
 	DOM_GC_TRACE("DOM::AsyncResult::new");
 	html = sv_stringify(html);
-	RETVAL = html5_dom_async_parse_init(cv, self, html, options);
+	RETVAL = html5_dom_async_parse_init(cv, self, html, options, ev_fd);
 OUTPUT:
 	RETVAL
 
