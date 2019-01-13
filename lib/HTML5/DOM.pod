@@ -292,7 +292,7 @@ C<$async-E<gt>parsed> returns C<1> if parsing done. Else returns C<0>.
 
 C<$async-E<gt>tree> returns L<HTML5::DOM::Tree|/"HTML5::DOM::Tree"> object if parsing done. Else returns C<undef>.
 
-3. Intergation with L<HTML::MyHTML|https://metacpan.org/pod/EV>
+3. Intergation with L<EV|https://metacpan.org/pod/EV>
 
 Required packages (only if you want use event loop):
 
