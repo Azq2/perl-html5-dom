@@ -139,6 +139,25 @@ typedef struct {
 	mycore_string_t value;
 } html5_dom_inner_text_state_t;
 
+typedef struct {
+	mythread_t *thread;
+	
+	// output tree
+	myhtml_tree_t *tree;
+	html5_dom_parser_t *parser;
+	SV *tree_sv;
+	
+	// status
+	mystatus_t status;
+	bool done;
+	
+	// input html
+	char *html;
+	STRLEN length;
+	
+	html5_dom_options_t opts;
+} html5_dom_async_result;
+
 typedef html5_dom_parser_t *			HTML5__DOM;
 typedef myhtml_collection_t *			HTML5__DOM__Collection;
 typedef myhtml_tree_node_t *			HTML5__DOM__Node;
@@ -152,6 +171,7 @@ typedef html5_dom_tree_t *				HTML5__DOM__Tree;
 typedef html5_css_parser_t *			HTML5__DOM__CSS;
 typedef html5_css_selector_t *			HTML5__DOM__CSS__Selector;
 typedef html5_css_selector_entry_t *	HTML5__DOM__CSS__Selector__Entry;
+typedef html5_dom_async_result *		HTML5__DOM__AsyncResult;
 
 static inline bool html5_dom_is_fragment(myhtml_tree_node_t *node) {
 	html5_dom_tree_t *context = (html5_dom_tree_t *) node->tree->context;
@@ -165,7 +185,7 @@ static const char *modest_strerror(mystatus_t status) {
 	return status ? "UNKNOWN" : "";
 }
 
-static void html5_dom_parser_free(html5_dom_parser_t *self) {
+static void *html5_dom_parser_free(html5_dom_parser_t *self) {
 	if (self->myhtml) {
 		myhtml_destroy(self->myhtml);
 		self->myhtml = NULL;
@@ -185,6 +205,8 @@ static void html5_dom_parser_free(html5_dom_parser_t *self) {
 		modest_finder_destroy(self->finder, 1);
 		self->finder = NULL;
 	}
+	
+	safefree(self);
 }
 
 static mystatus_t sv_serialization_callback(const char *data, size_t len, void *ctx) {
@@ -858,7 +880,7 @@ static void html5_tree_node_delete_recursive(myhtml_tree_node_t *node) {
 	}
 }
 
-void html5_dom_replace_attr_value(myhtml_tree_node_t *node, const char *key, size_t key_len, const char *val, size_t val_len, myencoding_t encoding) {
+static void html5_dom_replace_attr_value(myhtml_tree_node_t *node, const char *key, size_t key_len, const char *val, size_t val_len, myencoding_t encoding) {
 	myhtml_tree_attr_t *attr = myhtml_attribute_by_key(node, key, key_len);
 	if (attr) { // edit
 		// destroy original value
@@ -878,7 +900,7 @@ void html5_dom_replace_attr_value(myhtml_tree_node_t *node, const char *key, siz
 	}
 }
 
-myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **html_str, size_t *html_length) {
+static myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **html_str, size_t *html_length) {
 	// Try to determine encoding
 	myencoding_t encoding;
 	if (opts->encoding == MyENCODING_AUTO) {
@@ -909,7 +931,7 @@ myencoding_t html5_dom_auto_encoding(html5_dom_options_t *opts, const char **htm
 	return encoding;
 }
 
-void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts);
+static void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts);
 
 static myhtml_tree_node_t *html5_dom_parse_fragment(html5_dom_options_t *opts, myhtml_tree_t *tree, myhtml_tag_id_t tag_id, myhtml_namespace_t ns, 
 	const char *text, size_t length, html5_fragment_parts_t *parts, mystatus_t *status_out)
@@ -956,7 +978,7 @@ static myhtml_tree_node_t *html5_dom_parse_fragment(html5_dom_options_t *opts, m
 	return node;
 }
 
-long hv_get_int_value(HV *hv, const char *key, int length, long def) {
+static long hv_get_int_value(HV *hv, const char *key, int length, long def) {
 	if (hv) {
 		SV **sv = hv_fetch(hv, key, length, 0);
 		if (sv && *sv)
@@ -965,7 +987,7 @@ long hv_get_int_value(HV *hv, const char *key, int length, long def) {
 	return def;
 }
 
-myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencoding_t def) {
+static myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencoding_t def) {
 	if (hv) {
 		SV **sv = hv_fetch(hv, key, length, 0);
 		if (sv && *sv) {
@@ -998,8 +1020,8 @@ myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, myencodi
 	return def;
 }
 
-void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
-	opts->threads					= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 2);
+static void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *extend, HV *options) {
+	opts->threads					= hv_get_int_value(options, "threads", 7, extend ? extend->threads : 0);
 	opts->ignore_whitespace			= hv_get_int_value(options, "ignore_whitespace", 17, extend ? extend->ignore_whitespace : 0) > 0;
 	opts->ignore_doctype			= hv_get_int_value(options, "ignore_doctype", 14, extend ? extend->ignore_doctype : 0) > 0;
 	opts->scripts					= hv_get_int_value(options, "scripts", 7, extend ? extend->scripts : 0) > 0;
@@ -1014,7 +1036,7 @@ void html5_dom_parse_options(html5_dom_options_t *opts, html5_dom_options_t *ext
 	#endif
 }
 
-void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
+static void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
 	if (opts->encoding == MyENCODING_NOT_DETERMINED)
 		sub_croak(cv, "invalid encoding value");
 	if (opts->default_encoding == MyENCODING_NOT_DETERMINED || opts->default_encoding == MyENCODING_AUTO)
@@ -1025,7 +1047,7 @@ void html5_dom_check_options(CV *cv, html5_dom_options_t *opts) {
 		sub_croak(cv, "invalid encoding_prescan_limit value");
 }
 
-void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts) {
+static void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts) {
 	if (opts->scripts) {
 		tree->flags |= MyHTML_TREE_FLAGS_SCRIPT;
 	} else {
@@ -1040,9 +1062,9 @@ void html5_dom_apply_tree_options(myhtml_tree_t *tree, html5_dom_options_t *opts
 }
 
 // selectors to AST serialization
-void html5_dom_css_serialize_entry(mycss_selectors_list_t *selector, mycss_selectors_entry_t *entry, AV *result);
+static void html5_dom_css_serialize_entry(mycss_selectors_list_t *selector, mycss_selectors_entry_t *entry, AV *result);
 
-void html5_dom_css_serialize_selector(mycss_selectors_list_t *selector, AV *result) {
+static void html5_dom_css_serialize_selector(mycss_selectors_list_t *selector, AV *result) {
 	while (selector) {
 		for (size_t i = 0; i < selector->entries_list_length; ++i) {
 			mycss_selectors_entries_list_t *entries = &selector->entries_list[i];
@@ -1054,7 +1076,7 @@ void html5_dom_css_serialize_selector(mycss_selectors_list_t *selector, AV *resu
 	}
 }
 
-void html5_dom_css_serialize_entry(mycss_selectors_list_t *selector, mycss_selectors_entry_t *entry, AV *result) {
+static void html5_dom_css_serialize_entry(mycss_selectors_list_t *selector, mycss_selectors_entry_t *entry, AV *result) {
 	// combinators names
 	static const struct {
 		const char name[16];
@@ -1267,6 +1289,174 @@ void html5_dom_css_serialize_entry(mycss_selectors_list_t *selector, mycss_selec
 	}
 }
 
+static void *html5_dom_mythread_function(void *arg) {
+	mythread_context_t *ctx = (mythread_context_t *) arg;
+	mythread_t *mythread = ctx->mythread;
+	
+	mythread_mutex_wait(mythread, ctx->mutex);
+	ctx->func(ctx->id, ctx);
+	mythread_nanosleep_destroy(ctx->timespec);
+	ctx->opt = MyTHREAD_OPT_QUIT;
+	mythread_mutex_close(mythread, ctx->mutex);
+	
+    return NULL;
+}
+
+static void html5_dom_async_parse(html5_dom_async_result *result) {
+	mystatus_t status;
+	
+	// create parser
+	html5_dom_parser_t *self = (html5_dom_parser_t *) safemalloc(sizeof(html5_dom_parser_t));
+	memset(self, 0, sizeof(html5_dom_parser_t));
+	memcpy(&self->opts, &result->opts, sizeof(self->opts));
+	
+	// init myhtml
+	self->myhtml = myhtml_create();
+	
+	if (self->opts.threads <= 1) {
+		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_PARSE_MODE_SINGLE, 1, 0);
+	} else {
+		status = myhtml_init(self->myhtml, MyHTML_OPTIONS_DEFAULT, self->opts.threads, 0);
+	}
+	
+	if (status) {
+		html5_dom_parser_free(self);
+		result->status = status;
+		result->done = true;
+		return;
+	}
+	
+	// init myhtml tree
+	myhtml_tree_t *tree = myhtml_tree_create();
+	status = myhtml_tree_init(tree, self->myhtml);
+	if (status) {
+		myhtml_tree_destroy(tree);
+		html5_dom_parser_free(self);
+		result->status = status;
+		result->done = true;
+		return;
+	}
+	
+	// detect encoding
+	myencoding_t encoding = html5_dom_auto_encoding(&result->opts, (const char **) &result->html, &result->length);
+	
+	// apply options to tree
+	html5_dom_apply_tree_options(tree, &result->opts);
+	
+	// try parse
+	status = myhtml_parse(tree, encoding, result->html, result->length);
+	
+	if (result->html) {
+		safefree(result->html);
+		result->html = NULL;
+	}
+	
+	if (status) {
+		myhtml_tree_destroy(tree);
+		html5_dom_parser_free(self);
+		result->status = status;
+		result->done = true;
+		return;
+	}
+	
+	result->done = true;
+	result->tree = tree;
+	result->parser = self;
+}
+
+static void html5_dom_async_parse_worker(mythread_id_t thread_id, void *arg) {
+	mythread_context_t *ctx = (mythread_context_t *) arg;
+	html5_dom_async_result *result = (html5_dom_async_result *) ctx->mythread->context;
+	html5_dom_async_parse(result);
+}
+
+static html5_dom_async_result *html5_dom_async_parse_init(CV *cv, html5_dom_parser_t *self, SV *html, HV *options) {
+	html5_dom_async_result *result = (html5_dom_async_result *) safemalloc(sizeof(html5_dom_async_result));
+	memset(result, 0, sizeof(html5_dom_async_result));
+	
+	// extends options
+	html5_dom_parse_options(&result->opts, &self->opts, options);
+	html5_dom_check_options(cv, &result->opts);
+	
+	mystatus_t status;
+	
+	STRLEN html_len;
+	const char *html_str = SvPV_const(html, html_len);
+	
+	// copy html source
+	result->html = safemalloc(html_len);
+	result->length = html_len;
+	memcpy(result->html, html_str, html_len);
+	
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		// create parsing thread
+		result->thread = mythread_create();
+		status = mythread_init(result->thread, MyTHREAD_TYPE_STREAM, 1, 0);
+		
+		if (status) {
+			mythread_destroy(result->thread, NULL, NULL, true);
+			safefree(result->html);
+			safefree(result);
+			sub_croak(cv, "mythread_init failed: %d (%s)", status, modest_strerror(status));
+			return NULL;
+		}
+		
+		result->thread->context = result;
+		
+		status = myhread_entry_create(result->thread, html5_dom_mythread_function, html5_dom_async_parse_worker, MyTHREAD_OPT_STOP);
+		mythread_option_set(result->thread, MyTHREAD_OPT_QUIT);
+		
+		if (status) {
+			mythread_destroy(result->thread, NULL, NULL, true);
+			safefree(result->html);
+			safefree(result);
+			sub_croak(cv, "myhread_entry_create failed: %d (%s)", status, modest_strerror(status));
+			return NULL;
+		}
+		
+		// start parsing thread
+		status = mythread_resume(result->thread, MyTHREAD_OPT_UNDEF);
+		
+		if (status) {
+			mythread_destroy(result->thread, NULL, NULL, true);
+			safefree(result->html);
+			safefree(result);
+			sub_croak(cv, "mythread_resume failed: %d (%s)", status, modest_strerror(status));
+			return NULL;
+		}
+	#else
+		// sync fallback
+		html5_dom_async_parse(result);
+	#endif
+	
+	return result;
+}
+
+static SV *html5_dom_async_parse_done(CV *cv, html5_dom_async_result *result, bool wait) {
+	if (!wait && !result->done)
+		return NULL;
+	
+	#ifndef MyCORE_BUILD_WITHOUT_THREADS
+		if (result->thread)
+			result->thread = mythread_destroy(result->thread, NULL, NULL, true);
+	#endif
+	
+	if (result->status) {
+		sub_croak(cv, "parse failed: %d (%s)", result->status, modest_strerror(result->status));
+		return NULL;
+	}
+	
+	if (result->tree) {
+		DOM_GC_TRACE("DOM::new");
+		SV *myhtml_sv = pack_pointer("HTML5::DOM", result->parser);
+		result->tree_sv = create_tree_object(result->tree, myhtml_sv, result->parser);
+		result->tree = NULL;
+		SvREFCNT_dec(myhtml_sv);
+	}
+	
+	return result->tree_sv ? SvREFCNT_inc(result->tree_sv) : &PL_sv_undef;
+}
+
 MODULE = HTML5::DOM  PACKAGE = HTML5::DOM
 
 #################################################################
@@ -1295,7 +1485,7 @@ CODE:
 	}
 	
 	if (status) {
-		html5_dom_parser_free(self);
+		self = html5_dom_parser_free(self);
 		sub_croak(cv, "myhtml_init failed: %d (%s)", status, modest_strerror(status));
 	}
 	
@@ -1336,6 +1526,8 @@ SV *
 parseChunk(HTML5::DOM self, SV *html, HV *options = NULL)
 CODE:
 	mystatus_t status;
+	
+	html = sv_stringify(html);
 	
 	if (!self->tree) {
 		self->tree = myhtml_tree_create();
@@ -1400,6 +1592,8 @@ CODE:
 	html5_dom_parse_options(&opts, &self->opts, options);
 	html5_dom_check_options(cv, &opts);
 	
+	html = sv_stringify(html);
+	
 	myhtml_tree_t *tree = myhtml_tree_create();
 	status = myhtml_tree_init(tree, self->myhtml);
 	if (status) {
@@ -1423,14 +1617,74 @@ CODE:
 OUTPUT:
 	RETVAL
 
+# Parse full html (in background)
+HTML5::DOM::AsyncResult
+parseAsync(HTML5::DOM self, SV *html, HV *options = NULL)
+CODE:
+	DOM_GC_TRACE("DOM::AsyncResult::new");
+	html = sv_stringify(html);
+	RETVAL = html5_dom_async_parse_init(cv, self, html, options);
+OUTPUT:
+	RETVAL
+
 void
 DESTROY(HTML5::DOM self)
 CODE:
 	DOM_GC_TRACE("DOM::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
 	html5_dom_parser_free(self);
+
+
+
+#################################################################
+# HTML5::DOM::AsyncResult
+#################################################################
+MODULE = HTML5::DOM  PACKAGE = HTML5::DOM::AsyncResult
+
+# Wait for parsing done and return HTML5::DOM::Tree
+SV *
+wait(HTML5::DOM::AsyncResult self)
+CODE:
+	RETVAL = html5_dom_async_parse_done(cv, self, true);
+OUTPUT:
+	RETVAL
+
+# True if parsing done
+int
+parsed(HTML5::DOM::AsyncResult self)
+CODE:
+	RETVAL = self->done ? 1 : 0;
+OUTPUT:
+	RETVAL
+
+# Return HTML5::DOM::Tree if parsing done
+SV *
+tree(HTML5::DOM::AsyncResult self)
+CODE:
+	RETVAL = html5_dom_async_parse_done(cv, self, false);
+OUTPUT:
+	RETVAL
+
+void
+DESTROY(HTML5::DOM::AsyncResult self)
+CODE:
+	DOM_GC_TRACE("DOM::AsyncResult::DESTROY (refs=%d)", SvREFCNT(SvRV(ST(0))));
+	if (self->thread)
+		self->thread = mythread_destroy(self->thread, NULL, NULL, true);
+	
+	if (self->tree) {
+		self->tree = myhtml_tree_destroy(self->tree);
+		
+		if (self->parser)
+			self->parser = html5_dom_parser_free(self->parser);
+	}
+	
+	if (self->tree_sv)
+		SvREFCNT_dec(self->tree_sv);
+	
+	if (self->html)
+		safefree(self->html);
+	
 	safefree(self);
-
-
 
 #################################################################
 # HTML5::DOM::Tree
