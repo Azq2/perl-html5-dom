@@ -100,7 +100,7 @@ my $parser = HTML5::DOM->new;
 
 # override some options, if you need
 my $parser = HTML5::DOM->new({
-   threads                 => 2,
+   threads                 => 0,
    ignore_whitespace       => 0, 
    ignore_doctype          => 0, 
    scripts                 => 0, 
@@ -2802,7 +2802,7 @@ Options for:
 
 #### threads
 
-Threads count, if 0 - parsing in single mode without threads (default 2)
+Threads count, if 0 or 1 - parsing in single mode without threads (default 0)
 
 This option affects only for [HTML5::DOM::new](#new).
 
