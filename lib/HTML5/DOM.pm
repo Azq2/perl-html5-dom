@@ -311,6 +311,11 @@ use constant {
 sub parseAsync($$;$$) {
 	my ($self, $html, $options, $callback) = @_;
 	
+	if (ref($options) eq 'CODE' && !defined $callback) {
+		$callback = $options;
+		$options = {};
+	}
+	
 	if (ref($callback) eq 'CODE') {
 		require EV;
 		require AnyEvent::Util;

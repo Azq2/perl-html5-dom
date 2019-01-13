@@ -87,6 +87,7 @@ It based on  [https://github.com/lexborisov/Modest](https://github.com/lexboriso
 - Any manipulations using DOM-like API.
 - Auto-detect input encoding.
 - Fully integration in perl and memory management. You don't care about "free" or "destroy".
+- Supports async parsing, with optional event-loop intergration.
 
 # HTML5::DOM
 
@@ -165,6 +166,120 @@ my $tree = $parser->parseChunkEnd();
 ```
 
 Completes chunked parsing and return [HTML5::DOM::Tree](#html5domtree) object.
+
+### parseAsync
+
+Pasrsing html in background thread. Can use with different ways:
+
+1\. Manual wait parsing completion when you need.
+
+```perl
+my $html = '<div>Hello world!</div>';
+my $async = $parser->parseAsync($html);
+# dome some work
+my $tree = $async->wait; # HTML5::DOM::Tree
+```
+
+`$async-`wait> returns [HTML5::DOM::AsyncResult](#html5domasyncresult) object.
+
+2\. Non-blocking check for parsing completion.
+
+```perl
+my $html = '<div>Hello world!</div>';
+my $async = $parser->parseAsync($html);
+while (!$async->parsed) {
+    # dome some work
+}
+my $tree = $async->tree; # HTML5::DOM::Tree
+# work with $tree
+ print $tree->root->at('div')->text; # Hello world!
+
+# or another way
+
+my $html = '<div>Hello world!</div>';
+my $async = $parser->parseAsync($html);
+
+my $tree;
+while (!($tree = $async->tree)) {
+    # dome some work
+}
+# work with $tree
+print $tree->root->at('div')->text; # Hello world!
+```
+
+`$async-`parsed> returns `1` if parsing done. Else returns `0`.
+
+`$async-`tree> returns [HTML5::DOM::Tree](#html5domtree) object if parsing done. Else returns `undef`.
+
+3\. Intergation with [HTML::MyHTML](https://metacpan.org/pod/EV)
+
+Required packages (only if you want use this way):
+
+- [EV](https://metacpan.org/pod/EV)
+- [AnyEvent::Util](https://metacpan.org/pod/AnyEvent::Util)
+
+```perl
+use EV;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+my $html = '<div>Hello world!</div>';
+
+my $custom_options = { scripts => 0 };
+
+my $async = $parser->parseAsync($html, $options, sub {
+    my $tree = shift;
+    # work with $tree
+     print $tree->root->at('div')->text; # Hello world!
+});
+
+# do some work
+
+EV::loop;
+```
+
+`$tree` in callback is a [HTML5::DOM::Tree](#html5domtree) object.
+
+4\. Intergation with custom event-loop (example with AnyEvent loop)
+
+```perl
+use AnyEvent;
+use AnyEvent::Util;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+my $html = '<div>Hello world!</div>';
+
+my $custom_options = { scripts => 0 };
+
+# create pipe
+my ($r, $w) = AnyEvent::Util::portable_pipe();
+AnyEvent::fh_unblock $r;
+
+# fd for parseAsync communications
+my $write_fd = fileno($w);
+
+# after parsing complete module writes to $write_fd:
+# value "1" - if success
+# value "0" - if error
+my $async = $parser->parseAsync($html, $options, $write_fd);
+
+# watch for value
+my $async_watcher;
+$async_watcher = AE::io $r, 0, sub {
+    <$r>; # read "1" or "0"
+    $async_watcher = undef; # destroy watcher
+    
+    # work with $tree
+    print $tree->root->at('div')->text; # Hello world!
+};
+
+# ...do some work...
+
+AE::cv->recv;
+```
+
+`$tree` in callback is a [HTML5::DOM::Tree](#html5domtree) object.
 
 # HTML5::DOM::Tree
 
