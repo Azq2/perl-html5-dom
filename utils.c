@@ -19,7 +19,7 @@ void *html5_dom_mythread_function(void *arg) {
 static int html5_dom_fd_write(int fd, const char *data, int size) {
 	if (fd > -1) {
 		#ifdef MyCORE_OS_WINDOWS_NT
-			return send(fd, data, size, 0);
+			return _write(fd, data, size);
 		#else
 			return write(fd, data, size);
 		#endif

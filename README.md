@@ -80,7 +80,7 @@ It based on  [https://github.com/lexborisov/Modest](https://github.com/lexboriso
 
 ### Key features
 
-- Really fast HTML parsing, can use multithreads.
+- Really fast HTML parsing, can use threads.
 - Supports parsing by chunks.
 - Fully conformant with the HTML5 specification.
 - Fast CSS4 selectors.
@@ -3057,9 +3057,13 @@ Options for:
 
 #### threads
 
-Threads count, if 0 or 1 - parsing in single mode without threads (default 0)
+Threads count, if < 2 - parsing in single mode without threads (default 0)
 
 This option affects only for [HTML5::DOM::new](#new).
+
+In some OS or HTML documents may be slower than single mode (threads=0).
+
+Not recommended use if don't known what you do or without testing in real cases
 
 #### ignore\_whitespace
 

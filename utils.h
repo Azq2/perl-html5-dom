@@ -11,14 +11,16 @@
 #define node_is_document(node) (!node->parent && node == node->tree->document)
 #define node_is_root(node) (node->tree->node_html && node->tree->node_html == node)
 
-#include "modest_config.h"
+#if (defined(_WIN32) || defined(_WIN64))
+	#define MyCORE_OS_WINDOWS_NT
+#endif
 
 #include <stdio.h>
 #include <ctype.h>
 
 #ifdef MyCORE_OS_WINDOWS_NT
-	// for send
-	#include <winsock2.h>
+	// for _write
+	#include <io.h>
 #else
 	// for write
 	#include <unistd.h>

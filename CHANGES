@@ -15,3 +15,5 @@
                     - update and fix docs
                     - supports exists($node->{attr}) for attributes
 2019-01-13  1.10    - fix docs
+2019-01-14  1.11    - fix work on windows (tested with Strawberry)
+                    - fix infinitie loop with threads >= 2
