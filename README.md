@@ -80,7 +80,7 @@ It based on  [https://github.com/lexborisov/Modest](https://github.com/lexboriso
 
 ### Key features
 
-- Really fast HTML parsing, can use threads.
+- Really fast HTML parsing.
 - Supports parsing by chunks.
 - Fully conformant with the HTML5 specification.
 - Fast CSS4 selectors.
@@ -3061,9 +3061,11 @@ Threads count, if < 2 - parsing in single mode without threads (default 0)
 
 This option affects only for [HTML5::DOM::new](#new).
 
-In some OS or HTML documents may be slower than single mode (threads=0).
+Originaly, [MyHTML](https://github.com/lexborisov/myhtml/blob/master/LICENSE) can use mulithread parsing.
 
-Not recommended use if don't known what you do or without testing in real cases
+But in real cases this mode slower than single mode (threads=0). Result speed very OS-specific and depends on input html.
+
+Not recommended use if don't known what you do. **Single mode faster in 99.9% cases.**
 
 #### ignore\_whitespace
 
