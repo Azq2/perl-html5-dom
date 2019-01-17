@@ -181,6 +181,36 @@ $parser->parseChunkStart()->parseChunk('<')->parseChunk('di')->parseChunk('v>');
 
 Parse chunk of html stream.
 
+### parseChunkTree
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new;
+
+# start some chunked parsing
+$parser->parseChunk('<')->parseChunk('di')->parseChunk('v>');
+
+# get current tree
+my $tree = $parser->parseChunkTree;
+
+print $tree->html."\n"; # <html><head></head><body><div></div></body></html>
+
+# more parse html
+$parser->parseChunk('<div class="red">red div?</div>');
+
+print $tree->html."\n"; # <html><head></head><body><div><div class="red">red div?</div></div></body></html>
+
+# end parsing
+$parser->parseChunkEnd();
+
+print $tree->html."\n"; # <html><head></head><body><div><div class="red">red div?</div></div></body></html>
+```
+
+Return current [HTML5::DOM::Tree](#html5domtree) object (live result of all calls parseChunk).
+
 ### parseChunkEnd
 
 ```perl
@@ -676,6 +706,54 @@ my $parser = $tree->parser;
 ```
 
 Return parent [HTML5::DOM](#html5dom).
+
+### utf8
+
+As getter - get `1` if all methods returns all strings with utf8 flag.
+
+Example with utf8:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+use utf8;
+
+my $tree = HTML5::DOM->new->parse("<b>тест</b>");
+my $is_utf8_enabled = $tree->utf8;
+print "is_utf8_enabled=".($tree ? "true" : "false")."\n"; # true
+```
+
+Or example with bytes:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $tree = HTML5::DOM->new->parse("<b>тест</b>");
+my $is_utf8_enabled = $tree->utf8;
+print "is_utf8_enabled=".($tree ? "true" : "false")."\n"; # false
+```
+
+As setter - enable or disable utf8 flag on all returned strings.
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+use utf8;
+
+my $tree = HTML5::DOM->new->parse("<b>тест</b>");
+
+print "is_utf8_enabled=".($tree->utf8 ? "true" : "false")."\n"; # true
+print length($tree->at('b')->text)." chars\n"; # 4 chars
+
+$selector->utf8(0);
+
+print "is_utf8_enabled=".($tree->utf8 ? "true" : "false")."\n"; # false
+print length($tree->at('b')->text)." bytes\n"; # 8 bytes
+```
 
 # HTML5::DOM::Node
 
@@ -2347,10 +2425,16 @@ CSS Parser object
 ### new
 
 ```perl
+# with default options
 my $css = HTML5::DOM::CSS->new;
+
+# or override some options, if you need
+my $css = HTML5::DOM::CSS->new({
+    utf8 => 0
+});
 ```
 
-Create new css parser object.
+Create new css parser object wuth options. See ["CSS PARSER OPTIONS"](#css-parser-options) for details.
 
 ### parseSelector
 
@@ -2363,6 +2447,9 @@ Parse `$selector_text` and return [HTML5::DOM::CSS::Selector](#html5domcssselect
 ```perl
 my $css = HTML5::DOM::CSS->new;
 my $selector = $css->parseSelector('body div.red, body span.blue');
+
+# with custom options (extends options defined in HTML5::DOM::CSS->new)
+my $selector = $css->parseSelector('body div.red, body span.blue', { utf8 => 0 });
 ```
 
 # HTML5::DOM::CSS::Selector
@@ -2450,6 +2537,54 @@ my $css = HTML5::DOM::CSS->new;
 my $selector = $css->parseSelector('body div.red, body span.blue');
 print $selector->entry(0)->text."\n"; # body div.red
 print $selector->entry(1)->text."\n"; # body span.blue
+```
+
+### utf8
+
+As getter - get `1` if current selector object returns all strings with utf8 flag.
+
+Example with utf8:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+use utf8;
+
+my $selector = HTML5::DOM::CSS->new->parseSelector("[name="тест"]");
+my $is_utf8_enabled = $selector->utf8;
+print "is_utf8_enabled=".($is_utf8_enabled ? "true" : "false")."\n"; # true
+```
+
+Or example with bytes:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $selector = HTML5::DOM::CSS->new->parseSelector("[name="тест"]");
+my $is_utf8_enabled = $selector->utf8;
+print "is_utf8_enabled=".($is_utf8_enabled ? "true" : "false")."\n"; # false
+```
+
+As setter - enable or disable utf8 flag on all returned strings.
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+use utf8;
+
+my $selector = HTML5::DOM::CSS->new->parseSelector("[name="тест"]");
+
+print "is_utf8_enabled=".($selector->utf8 ? "true" : "false")."\n"; # true
+print length($selector->text)." chars\n"; # 13 chars
+
+$selector->utf8(0);
+
+print "is_utf8_enabled=".($selector->utf8 ? "true" : "false")."\n"; # false
+print length($selector->text)." bytes\n"; # 17 bytes
 ```
 
 # HTML5::DOM::CSS::Selector::Entry
@@ -3113,7 +3248,36 @@ Allow use detecding BOM to determine input HTML encoding. (default 1)
 
 See [detectBomAndCut](#detectbomandcut).
 
-# HTML5 support
+#### utf8
+
+Default: `"auto"`
+
+If 1, then all returned strings have utf8 flag (chars).
+
+If 0, then all returned strings haven't utf8 flag (bytes).
+
+If `"auto"`, then utf8 flag detected by input string. Automaticaly enables `utf8=1` if input string have utf8 flag.
+
+`"auto"` works only in [parse](#parse), [parseChunk](#parsechunk), [parseAsync](#parseasync) methods. 
+
+# CSS PARSER OPTIONS
+
+Options for:
+
+- [HTML5::DOM::CSS::new](#new)
+- [HTML5::DOM::CSS::parseSelector](#parseselector)
+
+#### utf8
+
+Default: `"auto"`
+
+If 1, then all returned strings have utf8 flag (chars).
+
+If 0, then all returned strings haven't utf8 flag (bytes).
+
+If `"auto"`, then utf8 flag detected by input string. Automaticaly enables `utf8=1` if input string have utf8 flag.
+
+# HTML5 SUPPORT
 
 Tested with [html5lib-tests](https://github.com/html5lib/html5lib-tests)
 
@@ -3181,6 +3345,75 @@ perl examples/html5lib_tests.pl --dir=../html5lib-tests/tree-construction --colo
 ```
 
 Send patches to lexborisov's [MyHTML](https://github.com/lexborisov/myhtml) if you want improve this result.
+
+# WORK WITH UTF8
+
+In normal cases you must don't care about utf8. Everything works out of the box.
+
+By default utf8 mode enabled automaticaly if you specify string with utf8 flag.
+
+For example:
+
+Perfect work with `use utf8`:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+use utf8;
+
+my $parser = HTML5::DOM->new;
+my $str = HTML5::DOM->new->parse('<b>тест тест</b>')->at('b')->text;
+print "length=".length($str)." [$str]\n"; # length=9 [тест тест]
+```
+
+Perfect work without `use utf8`:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+# Perfect work with default mode of perl strings (bytes)
+my $parser = HTML5::DOM->new;
+my $str = HTML5::DOM->new->parse('<b>тест тест</b>')->at('b')->text;
+print "length=".length($str)." [$str]\n"; # length=17 [тест тест]
+
+# You can pass string with utf8 flag without "use utf8" and it perfect works
+use Encode;
+my $test = '<b>тест тест</b>';
+Encode::_utf8_on($test);
+
+$str = HTML5::DOM->new->parse($test)->at('b')->text;
+print "length=".length($str)." [$str]\n"; # length=9 [тест тест]
+```
+
+But you can override this behavior - see ["PARSER OPTIONS"](#parser-options) for details.
+
+Force use bytes:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+use utf8;
+
+my $parser = HTML5::DOM->new({ utf8 => 0 });
+my $str = $parser->parse('<b>тест тест</b>')->at('b')->text;
+print "length=".length($str)." [$str]\n"; # length=17 [тест тест]
+```
+
+Force use utf8:
+
+```perl
+use warnings;
+use strict;
+use HTML5::DOM;
+
+my $parser = HTML5::DOM->new({ utf8 => 1 });
+my $str = $parser->parse('<b>тест тест</b>')->at('b')->text;
+print "length=".length($str)." [$str]\n"; # length=13 [тест тест]
+```
 
 # BUGS
 
