@@ -385,10 +385,10 @@ static myencoding_t hv_get_encoding_value(HV *hv, const char *key, int length, m
 					if (!myencoding_name_by_id(enc_id, NULL))
 						return MyENCODING_NOT_DETERMINED;
 				} else { // May be encoding name
-					if (!myencoding_by_name(enc_str, length, &enc_id)) {
-						if (length == 4 && strcasecmp(enc_str, "auto") == 0)
+					if (!myencoding_by_name(enc_str, enc_length, &enc_id)) {
+						if (enc_length == 4 && strcasecmp(enc_str, "auto") == 0)
 							return MyENCODING_AUTO;
-						if (length == 7 && strcasecmp(enc_str, "default") == 0)
+						if (enc_length == 7 && strcasecmp(enc_str, "default") == 0)
 							return MyENCODING_DEFAULT;
 						return MyENCODING_NOT_DETERMINED;
 					}
