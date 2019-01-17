@@ -19,3 +19,6 @@
                     - fix infinitie loop with threads >= 2
 2019-01-15  1.12    - fixes for some strange windows/*bsd environments.
                     - attention about threads mode.
+2019-01-15  1.13    - support for perl utf8-enabled strings.
+                    - added parseChunkTree function for getting temporary tree when parsing by chunks.
+                    - some fixes (encoding value parsing in options)
