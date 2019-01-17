@@ -18,6 +18,13 @@
 	#define sv_derived_from_pvn(sv, name, len) sv_derived_from(sv, name)
 #endif
 
+// HACK: support older perl <5.6 (why not :D)
+#if PERL_BCDVERSION < 0x5006000
+	#define SvUTF8(x) (0)
+	#define SvUTF8_on(x)
+	#define SvUTF8_off(x)
+#endif
+
 #define sub_croak(cv, msg, ...) do { \
 	const GV *const __gv = CvGV(cv); \
 	if (__gv) { \
