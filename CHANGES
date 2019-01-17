@@ -22,3 +22,4 @@
 2019-01-15  1.13    - support for perl utf8-enabled strings.
                     - added parseChunkTree function for getting temporary tree when parsing by chunks.
                     - some fixes (encoding value parsing in options)
+2019-01-15  1.14    - fix docs

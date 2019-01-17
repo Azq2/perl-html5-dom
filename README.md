@@ -88,6 +88,7 @@ It based on  [https://github.com/lexborisov/Modest](https://github.com/lexboriso
 - Auto-detect input encoding.
 - Fully integration in perl and memory management. You don't care about "free" or "destroy".
 - Supports async parsing, with optional event-loop intergration.
+- Perl utf8-enabled strings supports (See ["WORK WITH UTF8"](#work-with-utf8) for details.)
 
 # HTML5::DOM
 
@@ -2551,7 +2552,7 @@ use strict;
 use HTML5::DOM;
 use utf8;
 
-my $selector = HTML5::DOM::CSS->new->parseSelector("[name="тест"]");
+my $selector = HTML5::DOM::CSS->new->parseSelector("[name=\"тест\"]");
 my $is_utf8_enabled = $selector->utf8;
 print "is_utf8_enabled=".($is_utf8_enabled ? "true" : "false")."\n"; # true
 ```
@@ -2563,7 +2564,7 @@ use warnings;
 use strict;
 use HTML5::DOM;
 
-my $selector = HTML5::DOM::CSS->new->parseSelector("[name="тест"]");
+my $selector = HTML5::DOM::CSS->new->parseSelector("[name=\"тест\"]");
 my $is_utf8_enabled = $selector->utf8;
 print "is_utf8_enabled=".($is_utf8_enabled ? "true" : "false")."\n"; # false
 ```
@@ -2576,7 +2577,7 @@ use strict;
 use HTML5::DOM;
 use utf8;
 
-my $selector = HTML5::DOM::CSS->new->parseSelector("[name="тест"]");
+my $selector = HTML5::DOM::CSS->new->parseSelector("[name=\"тест\"]");
 
 print "is_utf8_enabled=".($selector->utf8 ? "true" : "false")."\n"; # true
 print length($selector->text)." chars\n"; # 13 chars

@@ -112,6 +112,10 @@ Fully integration in perl and memory management. You don't care about "free" or 
 
 Supports async parsing, with optional event-loop intergration.
 
+=item *
+
+Perl utf8-enabled strings supports (See L<"WORK WITH UTF8"> for details.)
+
 =back
 
 =head1 HTML5::DOM
