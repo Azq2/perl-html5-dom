@@ -1133,9 +1133,9 @@ print $text_node->html;                # new&gt;plain&gt;text
 
     ```perl
     my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
-    print $tree->outerHTML;                         # <div id="test">some <b>bold</b> test</div>
+    print $tree->getElementById('test')->outerHTML;   # <div id="test">some <b>bold</b> test</div>
     print $tree->createComment(' test ')->outerHTML;  # <!-- test -->
-    print $tree->createTextNode('test')->outerHTML; # test
+    print $tree->createTextNode('test')->outerHTML;   # test
     ```
 
 - HTML serialization of the node and its descendants.
@@ -1149,9 +1149,9 @@ print $text_node->html;                # new&gt;plain&gt;text
 
     ```perl
     my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
-    print $tree->innerHTML;                         # some <b>bold</b> test
+    print $tree->getElementById('test')->innerHTML;   # some <b>bold</b> test
     print $tree->createComment(' test ')->innerHTML;  # <!-- test -->
-    print $tree->createTextNode('test')->innerHTML; # test
+    print $tree->createTextNode('test')->innerHTML;   # test
     ```
 
 - Removes all of the element's descendants and replaces them with nodes constructed by parsing the HTML given in the string **$new\_html**.
@@ -1168,6 +1168,20 @@ print $text_node->html;                # new&gt;plain&gt;text
     my $tree = HTML5::DOM->new->parse('<div id="test">some <b>bold</b> test</div>');
     print $tree->at('#test')->innerHTML('<i>italic</i>');
     print $tree->body->innerHTML;  # <div id="test"><i>italic</i></div>
+    ```
+
+- HTML serialization of entire document
+
+    ```perl
+    my $html = $tree->document->html;
+    my $html = $node->document->outerHTML;
+    ```
+
+    Example:
+
+    ```perl
+    my $tree = HTML5::DOM->new->parse('<!DOCTYPE html><div id="test">some <b>bold</b> test</div>');
+    print $tree->document->outerHTML;   # <!DOCTYPE html><html><head></head><body><div id="test">some <b>bold</b> test</div></body></html>
     ```
 
 - Replaces the element and all of its descendants with a new DOM tree constructed by parsing the specified **$new\_html**.
