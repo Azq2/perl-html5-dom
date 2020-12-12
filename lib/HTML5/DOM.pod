@@ -1098,7 +1098,7 @@ Example:
 HTML serialization of entire document
 
   my $html = $tree->document->html;
-  my $html = $node->document->outerHTML;
+  my $html = $tree->document->outerHTML;
 
 Example:
 

@@ -1174,7 +1174,7 @@ print $text_node->html;                # new&gt;plain&gt;text
 
     ```perl
     my $html = $tree->document->html;
-    my $html = $node->document->outerHTML;
+    my $html = $tree->document->outerHTML;
     ```
 
     Example:
