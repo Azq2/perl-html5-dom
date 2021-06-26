@@ -1598,26 +1598,69 @@ ok($collection->length == 5, 'colection: length');
 ok(scalar(@{$collection}) == 5, 'colection: scalar length');
 ok(scalar(@{$collection->array}) == 5, 'colection->array: length');
 ok($collection->item(1) == $collection->[1], 'colection->item check');
-ok($collection->first == $collection->[0], 'colection->first check');
-ok($collection->last == $collection->[-1], 'colection->last check');
 ok($collection->html eq "<li>UNIX</li><li>Linux</li><li>OSX</li><li>Windows</li><li>FreeBSD</li>", 'colection->html check');
 ok($collection->text eq "UNIXLinuxOSXWindowsFreeBSD", 'colection->text check');
+ok($collection->reverse->text eq "FreeBSDWindowsOSXLinuxUNIX", 'colection reverse check');
+ok(length($collection->shuffle->text) == 26, 'colection shuffle check');
 
+ok(join('', @{$collection->grep(qr/X/i)->map('text')}) eq 'UNIXLinuxOSX', 'colection grep regexp');
+ok(join('', @{$collection->grep(sub { $_->text =~ $_[1] }, qr/X/i)->map('text')}) eq 'UNIXLinuxOSX', 'colection grep callback');
+
+ok($collection->head(2)->text eq 'UNIXLinux', 'colection head');
+ok($collection->head(-2)->text eq 'UNIXLinuxOSX', 'colection head negative');
+ok($collection->head(343344334)->text eq 'UNIXLinuxOSXWindowsFreeBSD', 'colection head large offset');
+ok($collection->head(-343344334)->text eq '', 'colection head invalid 2');
+
+ok($collection->tail(2)->text eq 'WindowsFreeBSD', 'colection tail');
+ok($collection->tail(-2)->text eq 'OSXWindowsFreeBSD', 'colection tail negative');
+ok($collection->tail(343344334)->text eq '', 'colection tail invalid');
+ok($collection->tail(-343344334)->text eq '', 'colection tail invalid 2');
+
+ok($collection->slice(1)->text eq 'LinuxOSXWindowsFreeBSD', 'colection slice(1)');
+ok($collection->slice(1, 2)->text eq 'LinuxOSX', 'colection slice(1, 2)');
+ok($collection->slice(-2)->text eq 'WindowsFreeBSD', 'colection slice(-2)');
+ok($collection->slice(-2, 1)->text eq 'Windows', 'colection slice(-2, 1)');
+ok($collection->slice(-3, -1)->text eq 'OSXWindows', 'colection slice(-3, -1)');
+ok($collection->slice(-33232, -134343443)->text eq '', 'colection slice invalid');
+ok($collection->slice(555534, 34433443)->text eq '', 'colection slice invalid 2');
+ok($collection->slice(-33232, 134343443)->text eq '', 'colection slice invalid 3');
+ok($collection->slice(555534, -34433443)->text eq '', 'colection slice invalid 4');
+
+my $uniq_map = {
+	UNIX		=> 1,
+	OSX			=> 1,
+	FreeBSD		=> 1,
+	Windows		=> 2
+};
+
+ok($collection->uniq()->text eq 'UNIXLinuxOSXWindowsFreeBSD', 'collection uniq');
+ok($collection->uniq(sub { $uniq_map->{$_->text} })->text eq 'UNIXWindows', 'collection uniq callback');
+
+ok($collection->first == $collection->[0], 'colection->first check');
+ok($collection->last == $collection->[-1], 'colection->last check');
+ok($collection->first(qr/W/i)->text eq 'Windows', 'colection first like grep regexp');
+ok($collection->first(sub { $_->text =~ $_[1] }, qr/W/i)->text eq 'Windows', 'colection first like grep callback');
+
+my $check_index = 0;
 $collection->each(sub {
-	my ($node, $index) = @_;
-	ok($node == $collection->[$index], 'collection each ['.$index.']');
-});
+	my ($node, $index, $additional) = @_;
+	ok($additional == 42 && $index == $check_index && $node == $collection->[$check_index], 'collection each ['.$check_index.']');
+	$check_index++;
+}, 42);
 
+$check_index = 0;
 my $result = $collection->map(sub {
-	my ($node, $index) = @_;
-	ok($node == $collection->[$index], 'collection map ['.$index.']');
+	my ($node, $index, $additional) = @_;
+	ok($additional == 42 && $index == $check_index && $node == $collection->[$check_index], 'collection map ['.$check_index.']');
+	$check_index++;
 	return $node->text;
-});
+}, 42);
 
 ok(join('', @$result) eq "UNIXLinuxOSXWindowsFreeBSD", 'colection map result join');
 ok(join('', @{$collection->map('text')}) eq "UNIXLinuxOSXWindowsFreeBSD", 'colection map result join 2');
+
 $collection->map('text', 1);
-ok(join('', @{$collection->map('text')}) eq "11111", 'colection map result join 3');
+ok(join('', @{$collection->map('text')}) eq "11111", 'colection map bulk call');
 
 ######################################################################################
 # HTML5::DOM::CSS + HTML5::DOM::CSS::Selector + HTML5::DOM::CSS::Selector::Entry

@@ -2151,21 +2151,40 @@ Creates new collection from `$nodes` (reference to array with [HTML5::DOM::Node]
 ### each
 
 ```perl
-my $collection = $collection->each(sub {
-   my ($node, $index) = @_;
-   print "node[$index] is a '$node'\n";
-});
+$collection->each(sub {...});
+$collection->each(sub {...}, @additional_args);
 ```
 
-Forach all nodes in collection.
+Foreach all nodes in collection. Returns self.
+
+Example:
+
+```perl
+$collection->each(sub {
+   my ($node, $index) = @_;
+   print "FOUND: node[$index] is a '$node'\n";
+});
+
+# Also can bypass additional arguments
+$collection->each(sub {
+   my ($node, $index, $title) = @_;
+   print $title."node[$index] is a '$node'\n";
+}, "FOUND: ");
+```
 
 ### map
 
 ```perl
 my $result = $collection->map(sub {
    my ($token, $index) = @_;
-   return $node->tag." => $index";
+   return "FOUND: ".$node->tag." => $index";
 });
+
+# Also can bypass additional arguments
+my $result = $collection->map(sub {
+   my ($token, $index, $title) = @_;
+   return $title.$node->tag." => $index";
+}, "FOUND: ");
 ```
 
 Apply callback for each node in collection. Returns new array from results.
@@ -2218,16 +2237,111 @@ my $collection = $tree->find('ul li');
 print $collection->length; # 3
 ```
 
+### grep
+
+```perl
+my $node = $collection->grep(qr/regexp/);
+```
+
+Evaluates regexp for html code of each element in collection and creates new collection with all matched elements.
+
+```perl
+my $node = $collection->grep(sub {...});
+my $node = $collection->grep(sub {...}, @args);
+```
+
+Evaluates callback foreach element in collection and creates new collection with all elements for which callback returned true.
+
+Example for regexp:
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX (not supported)</li>
+       <li>Windows (not supported)</li>
+   </ul>
+');
+my $collection = $tree->find('ul li')->grep(qr/not supported/);
+print $collection->length; # 2
+```
+
+Example for callback:
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX (not supported)</li>
+       <li>Windows (not supported)</li>
+   </ul>
+');
+my $collection = $tree->find('ul li')->grep(sub { $_->html =~ /not supported/ });
+print $collection->length; # 2
+```
+
 ### first
+
+```perl
+my $node = $collection->first;
+```
+
+Get first item in collection.
+
+```perl
+my $node = $collection->first(qr/regexp/);
+```
+
+Get first element in collection which html code matches regexp.
+
+```perl
+my $node = $collection->first(sub {...});
+my $node = $collection->first(sub {...}, @args);
+```
+
+Get first element in collection which where callback returned true.
+
+Example for regexp:
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX (not supported)</li>
+       <li>Windows (not supported)</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print $collection->first->html; # <li>Linux</li>
+print $collection->first(qr/not supported/)->html; # <li>OSX (not supported)</li>
+```
+
+Example for callback:
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX (not supported)</li>
+       <li>Windows (not supported)</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print $collection->first->html; # <li>Linux</li>
+print $collection->first(sub { $_->html =~ /not supported })->html; # <li>OSX (not supported)</li>
+```
 
 ### last
 
 ```perl
-my $node = $collection->first;
 my $node = $collection->last;
 ```
 
-Get first or last item in collection.
+Get last item in collection.
 
 ```perl
 my $tree = HTML5::DOM->new->parse('
@@ -2239,8 +2353,7 @@ my $tree = HTML5::DOM->new->parse('
    </ul>
 ');
 my $collection = $tree->find('ul li');
-print $collection->first->html;        #  <li>Linux</li>
-print $collection->last->html;         #  <li>Windows</li>
+print $collection->last->html; # <li>Windows</li>
 ```
 
 ### item
@@ -2264,6 +2377,169 @@ my $tree = HTML5::DOM->new->parse('
 my $collection = $tree->find('ul li');
 print $collection->item(1)->html;      # <li>OSX</li>
 print $collection->[1]->html;          # <li>OSX</li>
+```
+
+### reverse
+
+```perl
+my $reversed_collection = $collection->reverse;
+```
+
+Returns copy of collection in reverse order.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print join(', ', @{$collection->map('text')};            # Linux, OSX, Windows
+print join(', ', @{$collection->reverse()->map('text')}; # Windows, OSX, Linux
+```
+
+### shuffle
+
+```perl
+my $shuffled_collection = $collection->shuffle;
+```
+
+Returns copy of collection in random order.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print join(', ', @{$collection->shuffle()->map('text')}; # Windows, Linux, OSX
+print join(', ', @{$collection->shuffle()->map('text')}; # Windows, OSX, Linux
+print join(', ', @{$collection->shuffle()->map('text')}; # OSX, Windows, Linux
+```
+
+### head
+
+```perl
+my $new_collection = $collection->head($length);
+```
+
+Returns copy of collection with only first `$length` items.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print join(', ', @{$collection->head(2)->map('text')}; # Linux, OSX
+```
+
+### tail
+
+```perl
+my $new_collection = $collection->head($length);
+```
+
+Returns copy of collection with only last `$length` items.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print join(', ', @{$collection->tail(2)->map('text')}; # OSX, Windows
+```
+
+### slice
+
+```perl
+my $new_collection = $collection->slice($offset);
+```
+
+Returns new collection with sequence by specified `$offset`.
+
+If `$offset` is positive, the sequence will start at that `$offset` in the `$collection`.
+If `$offset` is negative, the sequence will start that far from the end of the `$collection`.
+
+```perl
+my $new_collection = $collection->slice($offset, $length);
+```
+
+Returns new collection with sequence by specified `$offset` and `$length`.
+
+If `$offset` is positive, the sequence will start at that `$offset` in the `$collection`.
+
+If `$offset` is negative, the sequence will start that far from the end of the `$collection`.
+
+If `$length` is positive, then the sequence will have up to that many elements in it.
+
+If the `$collection` is shorter than the `$length`, then only the available `$collection` elements will be present.
+
+If `$length` is negative then the sequence will stop that many elements from the end of the `$collection`.
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li>Linux</li>
+       <!-- comment -->
+       <li>NetBSD</li>
+       <li>OSX</li>
+       <li>Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print join(', ', @{$collection->slice(1)->map('text')};      # NetBSD, OSX, Windows
+print join(', ', @{$collection->slice(1, 2)->map('text')};   # NetBSD, OSX
+print join(', ', @{$collection->slice(-2)->map('text')};     # OSX, Windows
+print join(', ', @{$collection->slice(-2, 1)->map('text')};  # OSX
+print join(', ', @{$collection->slice(-3, -1)->map('text')}; # NetBSD, OSX
+```
+
+### uniq
+
+```perl
+my $new_collection = $collection->uniq();
+```
+
+Returns copy of collection with only uniq nodes.
+
+```perl
+my $new_collection = $collection->uniq(sub {...});
+```
+
+Returns copy of collection with only unique nodes which unique identifier of each node returned by callback.
+
+Example:
+
+```perl
+my $tree = HTML5::DOM->new->parse('
+   <ul>
+       <li data-kernel="linux">Ubuntu</li>
+       <li data-kernel="linux">Arch Linux</li>
+       <!-- comment -->
+       <li data-kernel="darwin">OSX</li>
+       <li data-kernel="nt">Windows</li>
+   </ul>
+');
+my $collection = $tree->find('ul li');
+print join(', ', @{$collection->uniq->map('text')};                                   # Ubuntu, Arch Linux, OSX, Windows
+print join(', ', @{$collection->uniq(sub { $_->attr("data-kernel") })->map('text')};  # Ubuntu, OSX, Windows
 ```
 
 ### array
