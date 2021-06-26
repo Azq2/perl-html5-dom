@@ -3317,62 +3317,64 @@ If C<"auto">, then utf8 flag detected by input string. Automaticaly enables C<ut
 
 =head1 HTML5 SUPPORT
 
-Tested with L<html5lib-tests|https://github.com/html5lib/html5lib-tests>
+Tested with L<html5lib-tests|https://github.com/html5lib/html5lib-tests> (at 2021-06-26)
 
+ -------------------------------------------------------------
  test                        total    ok      fail    skip
  -------------------------------------------------------------
+ foreign-fragment.dat        66       54      12      0
+ tests26.dat                 19       16      3       0
  menuitem-element.dat        19       16      3       0
  tests11.dat                 12       11      1       0
- math.dat                    7        7       0       0
+ tests1.dat                  112      112     0       0
+ tests4.dat                  6        6       0       0
+ tests6.dat                  51       51      0       0
+ ruby.dat                    20       20      0       0
+ adoption01.dat              17       17      0       0
+ tests14.dat                 6        6       0       0
+ tests19.dat                 104      104     0       0
+ tests7.dat                  30       30      0       0
+ noscript01.dat              17       17      0       0
+ tests17.dat                 12       12      0       0
+ tests23.dat                 4        4       0       0
+ pending-spec-changes.dat    2        2       0       0
+ tables01.dat                16       16      0       0
+ entities02.dat              25       25      0       0
+ tests22.dat                 4        4       0       0
+ tests10.dat                 53       53      0       0
+ tests15.dat                 13       13      0       0
+ inbody01.dat                3        3       0       0
+ template.dat                107      107     0       0
  plain-text-unsafe.dat       32       32      0       0
- webkit01.dat                48       48      0       0
+ comments01.dat              15       15      0       0
+ scriptdata01.dat            26       26      0       0
+ svg.dat                     7        7       0       0
+ tests25.dat                 25       25      0       0
+ tests3.dat                  23       23      0       0
+ tests20.dat                 43       43      0       0
+ tests12.dat                 1        1       0       0
+ tests21.dat                 24       24      0       0
+ math.dat                    7        7       0       0
+ webkit01.dat                49       49      0       0
+ main-element.dat            2        2       0       0
+ adoption02.dat              1        1       0       0
+ domjs-unsafe.dat            48       48      0       0
+ tests16.dat                 196      196     0       0
+ blocks.dat                  47       47      0       0
+ tests5.dat                  16       16      0       0
+ tests8.dat                  9        9       0       0
+ tricky01.dat                8        8       0       0
+ tests18.dat                 35       35      0       0
+ webkit02.dat                20       20      0       0
+ tests24.dat                 7        7       0       0
+ html5test-com.dat           23       23      0       0
+ isindex.dat                 3        3       0       0
+ doctype01.dat               36       36      0       0
+ entities01.dat              74       74      0       0
+ tests2.dat                  61       61      0       0
  tests9.dat                  26       26      0       0
  tests_innerHTML_1.dat       84       84      0       0
- scriptdata01.dat            26       26      0       0
- tests4.dat                  6        6       0       0
- noscript01.dat              17       17      0       0
- entities01.dat              74       74      0       0
- tests14.dat                 6        6       0       0
- domjs-unsafe.dat            48       48      0       0
- tests10.dat                 53       53      0       0
- ruby.dat                    20       20      0       0
- tests12.dat                 1        1       0       0
- comments01.dat              13       13      0       0
- main-element.dat            2        2       0       0
- entities02.dat              25       25      0       0
- template.dat                107      107     0       0
- tables01.dat                16       16      0       0
- tests15.dat                 13       13      0       0
- tests16.dat                 196      196     0       0
- tests25.dat                 25       25      0       0
- pending-spec-changes.dat    2        2       0       0
- tests23.dat                 4        4       0       0
- tricky01.dat                8        8       0       0
- tests1.dat                  112      112     0       0
- html5test-com.dat           23       23      0       0
- tests22.dat                 4        4       0       0
- tests26.dat                 15       15      0       0
- tests6.dat                  51       51      0       0
- tests5.dat                  16       16      0       0
- isindex.dat                 3        3       0       0
- tests20.dat                 43       43      0       0
- doctype01.dat               36       36      0       0
- tests21.dat                 24       24      0       0
- foreign-fragment.dat        57       57      0       0
- tests18.dat                 35       35      0       0
- tests8.dat                  9        9       0       0
- inbody01.dat                3        3       0       0
- tests7.dat                  30       30      0       0
- tests24.dat                 7        7       0       0
- tests2.dat                  61       61      0       0
- tests17.dat                 12       12      0       0
- webkit02.dat                20       20      0       0
- tests19.dat                 104      104     0       0
- adoption01.dat              17       17      0       0
- tests3.dat                  23       23      0       0
- blocks.dat                  47       47      0       0
- adoption02.dat              1        1       0       0
- summary                     1643     1639    4       0
+ summary                     1666     1647    19      0
 
 Tested with C<examples/html5lib_tests.pl>
 
