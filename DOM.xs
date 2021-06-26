@@ -2111,13 +2111,10 @@ CODE:
 	if (html5_dom_is_fragment(new_node)) {
 		myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
 		while (fragment_child) {
-			myhtml_tree_node_t *fragment_child = myhtml_node_child(new_node);
-			while (fragment_child) {
-				myhtml_tree_node_t *next = myhtml_node_next(fragment_child);
-				myhtml_tree_node_remove(fragment_child);
-				myhtml_tree_node_insert_before(old_node, fragment_child);
-				fragment_child = next;
-			}
+			myhtml_tree_node_t *next = myhtml_node_next(fragment_child);
+			myhtml_tree_node_remove(fragment_child);
+			myhtml_tree_node_insert_before(old_node, fragment_child);
+			fragment_child = next;
 		}
 	} else {
 		myhtml_tree_node_remove(new_node);

@@ -924,6 +924,121 @@ for my $test (@$test_manipulations) {
 	}
 }
 
+# DOM node insertion manipulations with fragment
+my $test_manipulations_with_fragment = [
+	{
+		method       => 'append',
+		on_parent    => 1,
+		return       => 'self',
+		check_offset => 5,
+	},
+	{
+		method       => 'appendChild',
+		on_parent    => 1,
+		return       => 'added',
+		check_offset => 5,
+	},
+	{
+		method       => 'prepend',
+		on_parent    => 1,
+		return       => 'self',
+		check_offset => 0,
+	},
+	{
+		method       => 'prependChild',
+		on_parent    => 1,
+		return       => 'added',
+		check_offset => 0,
+	},
+	{
+		method       => 'replace',
+		return       => 'self',
+		check_offset => 2,
+		replace      => 1,
+	},
+	{
+		method       => 'replaceChild',
+		on_parent    => 1,
+		with_child   => 1,
+		return       => 'removed',
+		check_offset => 2,
+		replace      => 1,
+	},
+	{
+		method       => 'before',
+		return       => 'self',
+		check_offset => 2,
+	},
+	{
+		method       => 'insertBefore',
+		on_parent    => 1,
+		with_child   => 1,
+		return       => 'added',
+		check_offset => 2,
+	},
+	{
+		method       => 'after',
+		return       => 'self',
+		check_offset => 3,
+	},
+	{
+		method       => 'insertAfter',
+		on_parent    => 1,
+		with_child   => 1,
+		return       => 'added',
+		check_offset => 3,
+	},
+];
+
+for my $test (@$test_manipulations_with_fragment) {
+	my $tree = HTML5::DOM->new->parse('
+		<ul>
+			<li>UNIX</li>
+			<li>Linux</li>
+			<li id="child">OSX</li>
+			<li>Windows</li>
+			<li>FreeBSD</li>
+		</ul>
+	');
+
+	my $arg = $tree->parseFragment('
+		<li>NetBSD</li>
+		<li>OpenBSD</li>
+	', 'ul');
+	my $arg_child1 = $arg->firstElementChild;
+	my $arg_child2 = $arg->lastElementChild;
+
+	my $method = $test->{method};
+	my $child = $tree->at('#child');
+	my $parent = $child->parent;
+	my $test_el = $test->{on_parent} ? $parent : $child;
+
+	my $result;
+	if ($test->{with_child}) {
+		$result = $test_el->$method($arg, $child);
+	} else {
+		$result = $test_el->$method($arg);
+	}
+
+	if ($test->{return} eq 'self') {
+		ok($result == $test_el, "$method with fragment: check return (self)");
+	} elsif ($test->{return} eq 'added') {
+		ok($result == $arg, "$method with fragment: check return (added)");
+	} elsif ($test->{return} eq 'removed') {
+		ok($result == $child, "$method with fragment: check return (removed)");
+	}
+
+	my $check_offset1 = $test->{check_offset};
+	my $check_offset2 = $check_offset1 + 1;
+	my $child_count = $test->{replace} ? 6 : 7;
+	my $children = $parent->children;
+	ok($children->item($check_offset1) == $arg_child1, "$method with fragment: check position 1");
+	ok($children->item($check_offset2) == $arg_child2, "$method with fragment: check position 2");
+	ok($children->length == $child_count, "$method with fragment: check child count");
+
+	ok($arg->childNodes->length == 0, "$method with fragment: check child count of arg");
+}
+
 #####################################
 # HTML5::DOM::DocType
 #####################################
