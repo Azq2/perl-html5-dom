@@ -31,3 +31,5 @@
                     - fix bugtracker url
                     - new collection methods: uniq, grep, head, tail, slice, shuffle, reverse
                     - added regexp/callback support to $collection->first
+                    - update modest
+2020-12-12  1.20    - fix link to issues
