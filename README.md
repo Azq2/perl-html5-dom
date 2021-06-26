@@ -3031,7 +3031,7 @@ print $encoding; # UTF-8
 my $encoding_id = HTML5::DOM::Encoding::detect($text, $max_length = 0);
 ```
 
-Detect text encoding. Single method for both [detectRussian](#detectrussian) and [detectUnicode](#detectunicode).
+Detect text encoding. Single method for both [detectCyrillic](#detectcyrillic) and [detectUnicode](#detectunicode).
 
 Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
 
@@ -3041,20 +3041,22 @@ my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
 print $encoding; # UTF-8
 ```
 
-### detectRussian
+### detectCyrillic
 
 ```perl
-my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
+my $encoding_id = HTML5::DOM::Encoding::detectCyrillic($text, $max_length = 0);
 ```
 
-Detect russian text encoding (using lowercase **trigrams**), such as `windows-1251`, `koi8-r`, `iso-8859-5`, `x-mac-cyrillic`, `ibm866`.
+Detect cyrillic text encoding (using lowercase **trigrams**), such as `windows-1251`, `koi8-r`, `iso-8859-5`, `x-mac-cyrillic`, `ibm866`.
 
 Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT\_DETERMINED if fail.
+
+This method also have aliases for compatibility reasons: `detectUkrainian`, `detectRussian`
 
 ### detectUnicode
 
 ```perl
-my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
+my $encoding_id = HTML5::DOM::Encoding::detectUnicode($text, $max_length = 0);
 ```
 
 Detect unicode family text encoding, such as `UTF-8`, `UTF-16LE`, `UTF-16BE`.

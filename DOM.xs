@@ -2954,7 +2954,9 @@ int
 detect(SV *text, long max_len = 0)
 ALIAS:
 	detectByPrescanStream	= 1
-	detectRussian			= 2
+	detectCyrillic			= 2
+	detectUkrainian			= 21
+	detectRussian			= 22
 	detectUnicode			= 3
 	detectBom				= 4
 	detectByCharset			= 5
@@ -2978,6 +2980,8 @@ CODE:
 			encoding = myencoding_prescan_stream_to_determine_encoding(text_str, text_len);
 		break;
 		case 2:
+		case 21:
+		case 22:
 			if (!myencoding_detect_russian(text_str, text_len, &encoding))
 				encoding = MyENCODING_NOT_DETERMINED;
 		break;

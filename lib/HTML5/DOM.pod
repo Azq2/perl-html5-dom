@@ -2780,7 +2780,7 @@ If fail, then encoding id equal HTML5::DOM::Encoding->NOT_DETERMINED.
 
  my $encoding_id = HTML5::DOM::Encoding::detect($text, $max_length = 0);
 
-Detect text encoding. Single method for both L<detectRussian|/detectRussian> and L<detectUnicode|/detectUnicode>.
+Detect text encoding. Single method for both L<detectCyrillic|/detectCyrillic> and L<detectUnicode|/detectUnicode>.
 
 Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT_DETERMINED if fail.
 
@@ -2788,17 +2788,19 @@ Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT_DETERMINE
  my $encoding = HTML5::DOM::Encoding::id2name($encoding_id);
  print $encoding; # UTF-8
 
-=head3 detectRussian
+=head3 detectCyrillic
 
- my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
+ my $encoding_id = HTML5::DOM::Encoding::detectCyrillic($text, $max_length = 0);
 
-Detect russian text encoding (using lowercase B<trigrams>), such as C<windows-1251>, C<koi8-r>, C<iso-8859-5>, C<x-mac-cyrillic>, C<ibm866>.
+Detect cyrillic text encoding (using lowercase B<trigrams>), such as C<windows-1251>, C<koi8-r>, C<iso-8859-5>, C<x-mac-cyrillic>, C<ibm866>.
 
 Returns encoding id, if success. And returns HTML5::DOM::Encoding->NOT_DETERMINED if fail.
 
+This method also have aliases for compatibility reasons: C<detectUkrainian>, C<detectRussian>
+
 =head3 detectUnicode
 
- my $encoding_id = HTML5::DOM::Encoding::detectRussian($text, $max_length = 0);
+ my $encoding_id = HTML5::DOM::Encoding::detectUnicode($text, $max_length = 0);
 
 Detect unicode family text encoding, such as C<UTF-8>, C<UTF-16LE>, C<UTF-16BE>.
 

@@ -85,7 +85,7 @@ sub each {
 sub uniq {
 	my ($self, $callback) = (shift, shift);
 	my %used;
-	return HTML5::DOM::Collection->new([grep { !$used{$_->$callback(@_)}++ } @$self]) if ($callback);
+	return HTML5::DOM::Collection->new([grep { !$used{$_->$callback(@_) // ''}++ } @$self]) if ($callback);
 	return HTML5::DOM::Collection->new([grep { !$used{$_->hash}++ } @$self]);
 }
 

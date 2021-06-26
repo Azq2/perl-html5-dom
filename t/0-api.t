@@ -10,7 +10,7 @@ require_ok('HTML5::DOM');
 can_ok('HTML5::DOM', qw(new));
 can_ok('HTML5::DOM::Collection', qw(new));
 can_ok('HTML5::DOM::Encoding', qw(
-	id2name name2id detectAuto detect detectRussian detectUnicode
+	id2name name2id detectAuto detect detectCyrillic detectUkrainian detectRussian detectUnicode
 	detectByPrescanStream detectByCharset detectBomAndCut
 ));
 can_ok('HTML5::DOM::CSS', qw(new));
@@ -1634,7 +1634,7 @@ my $uniq_map = {
 };
 
 ok($collection->uniq()->text eq 'UNIXLinuxOSXWindowsFreeBSD', 'collection uniq');
-ok($collection->uniq(sub { $uniq_map->{$_->text} })->text eq 'UNIXWindows', 'collection uniq callback');
+ok($collection->uniq(sub { $uniq_map->{$_->text} })->text eq 'UNIXLinuxWindows', 'collection uniq callback');
 
 ok($collection->first == $collection->[0], 'colection->first check');
 ok($collection->last == $collection->[-1], 'colection->last check');
@@ -1762,7 +1762,13 @@ ok($encoding_id == HTML5::DOM::Encoding->UTF_16LE, 'detectUnicode');
 $encoding_id = HTML5::DOM::Encoding::detect($utf16);
 ok($encoding_id == HTML5::DOM::Encoding->UTF_16LE, 'detect (pass utf-16)');
 
-# detectRussian
+# detectCyrillic
+$encoding_id = HTML5::DOM::Encoding::detectCyrillic($cp1251);
+ok($encoding_id == HTML5::DOM::Encoding->WINDOWS_1251, 'detectCyrillic');
+
+$encoding_id = HTML5::DOM::Encoding::detectUkrainian($cp1251);
+ok($encoding_id == HTML5::DOM::Encoding->WINDOWS_1251, 'detectUkrainian');
+
 $encoding_id = HTML5::DOM::Encoding::detectRussian($cp1251);
 ok($encoding_id == HTML5::DOM::Encoding->WINDOWS_1251, 'detectRussian');
 
