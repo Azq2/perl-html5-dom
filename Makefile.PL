@@ -67,7 +67,9 @@ WriteMakefile(
 				url			=> 'https://github.com/Azq2/perl-html5-dom.git',
 				web			=> 'https://github.com/Azq2/perl-html5-dom'
 			},
-			bugtracker => 'https://github.com/Azq2/perl-html5-dom/issues'
+			bugtracker => {
+				'web'	=> 'https://github.com/Azq2/perl-html5-dom/issues'
+			}
 		}}) : ()
 	),
 );
