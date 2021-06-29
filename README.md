@@ -2175,13 +2175,13 @@ $collection->each(sub {
 ### map
 
 ```perl
-my $result = $collection->map(sub {
+my $new_collection = $collection->map(sub {
    my ($token, $index) = @_;
    return "FOUND: ".$node->tag." => $index";
 });
 
 # Also can bypass additional arguments
-my $result = $collection->map(sub {
+my $new_collection = $collection->map(sub {
    my ($token, $index, $title) = @_;
    return $title.$node->tag." => $index";
 }, "FOUND: ");
@@ -2190,7 +2190,7 @@ my $result = $collection->map(sub {
 Apply callback for each node in collection. Returns new array from results.
 
 ```perl
-my $result = $collection->map($method, @args);
+my $new_collection = $collection->map($method, @args);
 ```
 
 Call method for each node in collection. Returns new [HTML5::DOM::Collection](#html5domcollection) from results.
@@ -2199,10 +2199,10 @@ Example:
 
 ```perl
 # set text 'test!' for all nodes
-my $result = $collection->map('text', 'test!');
+$collection->map('text', 'test!');
 
 # get all tag names as array
-my $result = $collection->map('tag');
+my $new_collection = $collection->map('tag');
 
 # remove all nodes in collection
 $collection->map('remove');
@@ -2240,14 +2240,14 @@ print $collection->length; # 3
 ### grep
 
 ```perl
-my $node = $collection->grep(qr/regexp/);
+my $new_collection = $collection->grep(qr/regexp/);
 ```
 
 Evaluates regexp for html code of each element in collection and creates new collection with all matched elements.
 
 ```perl
-my $node = $collection->grep(sub {...});
-my $node = $collection->grep(sub {...}, @args);
+my $new_collection = $collection->grep(sub {...});
+my $new_collection = $collection->grep(sub {...}, @args);
 ```
 
 Evaluates callback foreach element in collection and creates new collection with all elements for which callback returned true.
@@ -2448,7 +2448,7 @@ print join(', ', @{$collection->head(2)->map('text')}; # Linux, OSX
 ### tail
 
 ```perl
-my $new_collection = $collection->head($length);
+my $new_collection = $collection->tail($length);
 ```
 
 Returns copy of collection with only last `$length` items.

@@ -26,7 +26,7 @@ sub length { scalar(@{shift()}); }
 sub first {
 	my ($self, $callback) = (shift, shift);
 	return $self->[0] if (!$callback);
-	return List::Util::first { $_ =~ $callback } @$self if (_is_regexp $callback);
+	return List::Util::first { $_ =~ $callback } @$self if (_is_regexp($callback));
 	return List::Util::first { $_->$callback(@_) } @$self;
 }
 
@@ -90,7 +90,7 @@ sub uniq {
 
 sub grep {
 	my ($self, $callback) = (shift, shift);
-	return HTML5::DOM::Collection->new([grep { $_ =~ $callback } @$self]) if (_is_regexp $callback);
+	return HTML5::DOM::Collection->new([grep { $_ =~ $callback } @$self]) if (_is_regexp($callback));
 	return HTML5::DOM::Collection->new([grep { $_->$callback(@_) } @$self]);
 }
 
