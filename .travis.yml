@@ -23,6 +23,5 @@ perl:
     - "5.8"
 os:
     - linux
-    - osx
 
 script: perl Makefile.PL && make test TEST_VERBOSE=1
