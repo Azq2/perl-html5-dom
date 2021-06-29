@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 use List::Util;
-use re qw(is_regexp);
 
 use overload
 	'""'		=> sub { shift->html }, 
@@ -27,7 +26,7 @@ sub length { scalar(@{shift()}); }
 sub first {
 	my ($self, $callback) = (shift, shift);
 	return $self->[0] if (!$callback);
-	return List::Util::first { $_ =~ $callback } @$self if (is_regexp $callback);
+	return List::Util::first { $_ =~ $callback } @$self if (_is_regexp $callback);
 	return List::Util::first { $_->$callback(@_) } @$self;
 }
 
@@ -91,7 +90,7 @@ sub uniq {
 
 sub grep {
 	my ($self, $callback) = (shift, shift);
-	return HTML5::DOM::Collection->new([grep { $_ =~ $callback } @$self]) if (is_regexp $callback);
+	return HTML5::DOM::Collection->new([grep { $_ =~ $callback } @$self]) if (_is_regexp $callback);
 	return HTML5::DOM::Collection->new([grep { $_->$callback(@_) } @$self]);
 }
 
@@ -129,6 +128,10 @@ sub html {
 		push @nodes, $node->html;
 	}
 	return join("", @nodes);
+}
+
+sub _is_regexp {
+	return ref($_[0]) eq 'Regexp' || ref(\$_[0]) eq 'Regexp';
 }
 
 1;

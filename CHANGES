@@ -34,3 +34,4 @@
                     - update modest
 2021-06-26  1.20    - fix link to issues
 2021-06-26  1.21    - fix link to issues
+2021-06-29  1.22    - replace re:;is_regexp to ref() check for older perl versions
