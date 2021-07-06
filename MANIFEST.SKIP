@@ -13,6 +13,7 @@ Makefile\.mk$
 Makefile\.bin\.cfg$
 Makefile\.cfg$
 MANIFEST.bak
+MYMETA.*?$
 .gz
 .tar
 .md
